@@ -54,7 +54,7 @@ import { Slider } from "../ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { format } from "date-fns";
-import { useDashboardStore, getRegistryUserName } from "../../store/dashboardStore";
+import { useDashboardStore, getRegistryUserName, getOrderIsInternational } from "../../store/dashboardStore";
 import type { Order } from "../../store/dashboardStore";
 import type { MineralSubmission } from "../../types/sellSubmissions";
 
@@ -73,21 +73,27 @@ export function SellMineralManagement({ onOpenOrderDetail, onOpenSubmissionDetai
   const [orderSearchTerm, setOrderSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [submissionToDelete, setSubmissionToDelete] = useState<MineralSubmission | null>(null);
+  const [orderScopeFilter, setOrderScopeFilter] = useState<"all" | "domestic" | "international">("all");
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   const filteredSellOrders = useMemo(() => {
+    let list = sellOrders;
     const term = orderSearchTerm.toLowerCase().trim();
-    if (!term) return sellOrders;
-    return sellOrders.filter(
-      (o) =>
-        o.id.toLowerCase().includes(term) ||
-        o.mineral.toLowerCase().includes(term) ||
-        getRegistryUserName(state.registryUsers, o.userId).toLowerCase().includes(term)
-    );
-  }, [sellOrders, orderSearchTerm, state.registryUsers]);
+    if (term) {
+      list = list.filter(
+        (o) =>
+          o.id.toLowerCase().includes(term) ||
+          o.mineral.toLowerCase().includes(term) ||
+          getRegistryUserName(state.registryUsers, o.userId).toLowerCase().includes(term)
+      );
+    }
+    if (orderScopeFilter === "domestic") return list.filter((o) => !getOrderIsInternational(o, state.registryUsers));
+    if (orderScopeFilter === "international") return list.filter((o) => getOrderIsInternational(o, state.registryUsers));
+    return list;
+  }, [sellOrders, orderSearchTerm, orderScopeFilter, state.registryUsers]);
 
   // Filtering
   const filteredSubmissions = submissions.filter(item => {
@@ -433,6 +439,16 @@ export function SellMineralManagement({ onOpenOrderDetail, onOpenSubmissionDetai
                     onChange={(e) => setOrderSearchTerm(e.target.value)}
                   />
                 </div>
+                <Select value={orderScopeFilter} onValueChange={(v) => setOrderScopeFilter(v as "all" | "domestic" | "international")}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All orders</SelectItem>
+                    <SelectItem value="domestic">Domestic only</SelectItem>
+                    <SelectItem value="international">International only</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardHeader>
             <CardContent>
@@ -441,6 +457,7 @@ export function SellMineralManagement({ onOpenOrderDetail, onOpenSubmissionDetai
                   <TableRow>
                     <TableHead>Order ID</TableHead>
                     <TableHead>User</TableHead>
+                    <TableHead>Scope</TableHead>
                     <TableHead>Mineral</TableHead>
                     <TableHead>Qty / Unit</TableHead>
                     <TableHead>Amount</TableHead>
@@ -452,12 +469,14 @@ export function SellMineralManagement({ onOpenOrderDetail, onOpenSubmissionDetai
                 <TableBody>
                   {filteredSellOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                         No sell orders from users.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredSellOrders.map((order) => (
+                    filteredSellOrders.map((order) => {
+                      const isIntl = getOrderIsInternational(order, state.registryUsers);
+                      return (
                       <TableRow key={order.id}>
                         <TableCell className="font-mono text-xs font-medium">{order.id}</TableCell>
                         <TableCell>
@@ -467,6 +486,11 @@ export function SellMineralManagement({ onOpenOrderDetail, onOpenSubmissionDetai
                               <span className="text-xs text-muted-foreground">{order.userId}</span>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={isIntl ? "bg-violet-50 text-violet-700 dark:bg-violet-900/20 border-violet-200 text-xs" : "bg-slate-50 text-slate-600 dark:bg-slate-800 text-xs"}>
+                            {isIntl ? "International" : "Domestic"}
+                          </Badge>
                         </TableCell>
                         <TableCell className="font-medium text-sm">{order.mineral}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{order.qty} {order.unit}</TableCell>
@@ -484,7 +508,8 @@ export function SellMineralManagement({ onOpenOrderDetail, onOpenSubmissionDetai
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))
+                    );
+                    })
                   )}
                 </TableBody>
               </Table>

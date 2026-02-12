@@ -263,9 +263,11 @@ const SHIPMENTS = [
 
 export interface LogisticsManagementProps {
   initialOrderId?: string;
+  /** Open full order detail page (Buyer/Seller management). */
+  onOpenOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
 }
 
-export function LogisticsManagement({ initialOrderId }: LogisticsManagementProps = {}) {
+export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: LogisticsManagementProps = {}) {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedShipment, setSelectedShipment] = useState<any>(null);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
@@ -346,6 +348,8 @@ export function LogisticsManagement({ initialOrderId }: LogisticsManagementProps
     setActiveTab("third-party");
   }, [initialOrderId]);
 
+  const orderForLink = initialOrderId ? allOrders.find((o) => o.id === initialOrderId) : null;
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -354,6 +358,11 @@ export function LogisticsManagement({ initialOrderId }: LogisticsManagementProps
           <p className="text-muted-foreground">Manage carriers, shipments, and logistics performance.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {orderForLink && onOpenOrderDetail && (
+            <Button variant="outline" size="sm" className="text-emerald-600 border-emerald-200" onClick={() => onOpenOrderDetail(orderForLink.id, orderForLink.type === "Buy" ? "buy" : "sell")}>
+              Open order detail
+            </Button>
+          )}
           <Select value={regionFilter} onValueChange={setRegionFilter}>
             <SelectTrigger className="w-[120px] h-9 text-xs">
               <SelectValue placeholder="Region" />

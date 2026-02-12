@@ -45,6 +45,11 @@ export default function App() {
     setViewParams(params ?? {});
   }, []);
 
+  const openOrderDetail = useCallback((orderId: string, type: "buy" | "sell") => {
+    setOrderDetail({ orderId, type });
+    setCurrentView(type === "sell" ? "sell-order-detail" : "buy-order-detail");
+  }, []);
+
   const openMineralFormPage = useCallback((mineralId?: string) => {
     setCurrentView("mineral-form");
     setViewParams(mineralId ? { selectedMineralId: mineralId } : {});
@@ -220,7 +225,15 @@ export default function App() {
       case "compliance":
         return <ComplianceVerification />;
       case "orders":
-        return <OrderTransactionManagement initialTransactionId={viewParams.selectedTransactionId} />;
+        return (
+          <OrderTransactionManagement
+            initialTransactionId={viewParams.selectedTransactionId}
+            onOpenFullOrderDetail={(orderId, orderType) => {
+              setOrderDetail({ orderId, type: orderType });
+              setCurrentView(orderType === "sell" ? "sell-order-detail" : "buy-order-detail");
+            }}
+          />
+        );
       case "enquiries":
         return <EnquirySupportManagement initialUserId={viewParams.selectedUserId} />;
       case "finance":
@@ -230,11 +243,11 @@ export default function App() {
       case "analytics":
         return <AnalyticsInsights />;
       case "disputes":
-        return <DisputesResolution initialOrderId={viewParams.selectedOrderId} />;
+        return <DisputesResolution initialOrderId={viewParams.selectedOrderId} onOpenOrderDetail={openOrderDetail} />;
       case "partners":
         return <PartnerManagement />;
       case "logistics":
-        return <LogisticsManagement initialOrderId={viewParams.selectedOrderId} />;
+        return <LogisticsManagement initialOrderId={viewParams.selectedOrderId} onOpenOrderDetail={openOrderDetail} />;
       case "insurance":
         return <InsuranceManagement />;
       case "settings":

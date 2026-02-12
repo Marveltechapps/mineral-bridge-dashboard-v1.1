@@ -76,7 +76,8 @@ import {
   FileDown,
   Settings,
   ShieldIcon,
-  Monitor
+  Monitor,
+  Video
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "../ui/card";
 import { Button } from "../ui/button";
@@ -120,6 +121,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Progress } from "../ui/progress";
 import { Checkbox } from "../ui/checkbox";
 import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea";
 import {
   Select,
   SelectContent,
@@ -142,7 +144,7 @@ import { toast } from "sonner@2.0.3";
 import { motion, AnimatePresence } from "motion/react";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
 import { useDashboardStore, getUserDetails, getKycVerificationResult, getVerificationLogForEntity, type RegistryUserRow, type Order, type Transaction, type Facility, type LinkedPaymentMethod } from "../../store/dashboardStore";
-import type { LoginAttempt, DeviceSession, SecurityNote, ActivityEvent } from "../../types/userDetails";
+import type { LoginAttempt, DeviceSession, SecurityNote, ActivityEvent, VideoCallEntry, ArtisanalProfile, ArtisanalDocumentRequest } from "../../types/userDetails";
 import { StatusBadge } from "../ui/status-badge";
 
 // --- Shared Document State ---
@@ -216,6 +218,47 @@ const ADDITIONAL_DOCUMENTS_FROM_APP = [
 
 const AFRICAN_COUNTRIES = ["Ghana", "Nigeria", "South Africa", "Cameroon", "Ethiopia", "Kenya", "Tanzania", "Zambia", "DRC", "Mali", "Burkina Faso"];
 const isArtisanalUser = (u: RegistryUserRow) => u.role === "Artisanal Collector" && AFRICAN_COUNTRIES.includes(u.country);
+
+function ArtisanalProfileDisplay({ profile }: { profile: ArtisanalProfile }) {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 space-y-3">
+        <h4 className="text-sm font-medium text-muted-foreground mb-2">Operation type</h4>
+        <p className="text-sm text-slate-900 dark:text-slate-100">{profile.operationType}</p>
+      </div>
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 space-y-3">
+        <h4 className="text-sm font-medium text-muted-foreground mb-2">Location details</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">Country</span><span className="text-slate-900 dark:text-slate-100">{profile.country}</span></div>
+          {profile.stateProvince && <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">State / Province</span><span className="text-slate-900 dark:text-slate-100">{profile.stateProvince}</span></div>}
+          {profile.district && <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">District</span><span className="text-slate-900 dark:text-slate-100">{profile.district}</span></div>}
+          {profile.villageTown && <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">Village / Town</span><span className="text-slate-900 dark:text-slate-100">{profile.villageTown}</span></div>}
+          {profile.gpsLocation && <div className="sm:col-span-2"><span className="text-muted-foreground block text-xs font-medium mb-0.5">GPS Location</span><span className="text-slate-900 dark:text-slate-100">{profile.gpsLocation}</span></div>}
+          <div className="sm:col-span-2"><span className="text-muted-foreground block text-xs font-medium mb-0.5">Mining area type</span><span className="text-slate-900 dark:text-slate-100">{profile.miningAreaType.join(", ")}</span></div>
+        </div>
+      </div>
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 space-y-3">
+        <h4 className="text-sm font-medium text-muted-foreground mb-2">Operation details</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          {profile.mineralType && <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">Mineral type</span><span className="text-slate-900 dark:text-slate-100">{profile.mineralType}</span></div>}
+          {profile.miningMethod && <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">Mining method</span><span className="text-slate-900 dark:text-slate-100">{profile.miningMethod}</span></div>}
+          {profile.yearsOfExperience != null && <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">Years of experience</span><span className="text-slate-900 dark:text-slate-100">{profile.yearsOfExperience}</span></div>}
+          {profile.numberOfWorkers != null && <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">Number of workers</span><span className="text-slate-900 dark:text-slate-100">{profile.numberOfWorkers}</span></div>}
+        </div>
+      </div>
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 space-y-3">
+        <h4 className="text-sm font-medium text-muted-foreground mb-2">Compliance & trust</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">Mining license uploaded</span><Badge variant={profile.miningLicenseUploaded ? "default" : "secondary"} className="text-xs">{profile.miningLicenseUploaded ? "Yes" : "No"}</Badge></div>
+          {profile.cooperativeGroup != null && <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">Cooperative / group</span><Badge variant="outline" className="text-xs">{profile.cooperativeGroup ? "Yes" : "No"}</Badge></div>}
+          <div className="flex items-center gap-2"><span className="text-muted-foreground block text-xs font-medium mb-0.5">Child labor declaration (no minors)</span><CheckCircle className={`w-4 h-4 shrink-0 mt-0.5 ${profile.childLaborDeclaration ? "text-emerald-600" : "text-slate-300"}`} /></div>
+          {profile.safePracticesEnvironmental != null && <div><span className="text-muted-foreground block text-xs font-medium mb-0.5">Safe practices / environmental</span><Badge variant="outline" className="text-xs">{profile.safePracticesEnvironmental ? "Yes" : "No"}</Badge></div>}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">Submitted at {profile.submittedAt}</p>
+    </div>
+  );
+}
 
 // --- Sub-Components ---
 
@@ -362,6 +405,15 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
   const [newUser, setNewUser] = useState({ name: "", email: "", phone: "", role: "Seller / License Holder", country: "Ghana", flag: "🇬🇭" });
   const [transactionalRestricted, setTransactionalRestricted] = useState(false);
   const [forensicFlagged, setForensicFlagged] = useState(false);
+  const [videoCallDialogOpen, setVideoCallDialogOpen] = useState(false);
+  const [videoCallPlatform, setVideoCallPlatform] = useState<VideoCallEntry["platform"]>("Google Meet");
+  const [videoCallLink, setVideoCallLink] = useState("");
+  const [videoCallSentVia, setVideoCallSentVia] = useState<"app" | "email">("app");
+  const [videoCallNote, setVideoCallNote] = useState("");
+  const [docRequestDialogOpen, setDocRequestDialogOpen] = useState(false);
+  const [docRequestType, setDocRequestType] = useState<ArtisanalDocumentRequest["documentType"]>("Mining License");
+  const [docRequestMessage, setDocRequestMessage] = useState("");
+  const [docRequestSentVia, setDocRequestSentVia] = useState<"app" | "email">("app");
 
   const registryUsers = state.registryUsers;
   const facilities = state.facilities;
@@ -426,6 +478,45 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
   const handleFlagForensic = () => {
     setForensicFlagged(true);
     toast.success("Flagged for forensic audit", { description: "Case has been queued for compliance review." });
+  };
+
+  const handleSendVideoCallLink = () => {
+    if (!selectedRegistryUser || !videoCallLink.trim()) {
+      toast.error("Missing link", { description: "Enter the video call or chat link." });
+      return;
+    }
+    const entry: VideoCallEntry = {
+      id: `vc-${Date.now()}`,
+      platform: videoCallPlatform,
+      link: videoCallLink.trim(),
+      sentVia: videoCallSentVia,
+      sentAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) + " • " + new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+      note: videoCallNote.trim() || undefined,
+    };
+    dispatch({ type: "ADD_VIDEO_CALL", payload: { userId: selectedRegistryUser.id, entry } });
+    setVideoCallDialogOpen(false);
+    setVideoCallLink("");
+    setVideoCallNote("");
+    toast.success("Video call link sent", { description: `Link sent via ${videoCallSentVia === "app" ? "app notification" : "email"}. Recorded in user data.` });
+  };
+
+  const handleSendDocumentRequest = () => {
+    if (!selectedRegistryUser) return;
+    const entry: ArtisanalDocumentRequest = {
+      id: `docreq-${Date.now()}`,
+      documentType: docRequestType,
+      message: docRequestMessage.trim() || undefined,
+      sentVia: docRequestSentVia,
+      sentAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) + " • " + new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+      status: "sent",
+    };
+    dispatch({ type: "ADD_ARTISANAL_DOCUMENT_REQUEST", payload: { userId: selectedRegistryUser.id, entry } });
+    setDocRequestDialogOpen(false);
+    setDocRequestMessage("");
+    toast.success(
+      docRequestSentVia === "app" ? "Request sent via app notification" : "Request sent via email",
+      { description: docRequestSentVia === "app" ? "User will receive this document request in the app. Recorded in dashboard." : "Document request has been sent by email." }
+    );
   };
 
   const handleExportLedgerPdf = () => {
@@ -677,11 +768,11 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                       <Tabs value={userListSegment} onValueChange={(v) => setUserListSegment(v as "all" | "artisanal")} className="w-full">
                         <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg">
                           <TabsTrigger value="all" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400">All Users</TabsTrigger>
-                          <TabsTrigger value="artisanal" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400">Artisanal Users (African only)</TabsTrigger>
+                          <TabsTrigger value="artisanal" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400">Artisanal Sellers (African only)</TabsTrigger>
                         </TabsList>
                       </Tabs>
                       {userListSegment === "artisanal" && (
-                        <p className="text-xs text-muted-foreground mt-2">Artisanal flow enabled only for African participants; separate management.</p>
+                        <p className="text-xs text-muted-foreground mt-2">Seller only (not buyers) — small-scale miners, cooperatives, or individuals (African only). Additional ASM regulatory onboarding details collected from app; review and approve or reject below.</p>
                       )}
                     </div>
                     {/* Registry Search & Filtering */}
@@ -747,11 +838,15 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                              <TableHead className="text-xs font-medium text-muted-foreground">Risk Profile</TableHead>
                              <TableHead className="text-xs font-medium text-muted-foreground">Pre-homepage details</TableHead>
                              <TableHead className="text-xs font-medium text-muted-foreground text-right">Lifetime Volume</TableHead>
+                             <TableHead className="text-xs font-medium text-muted-foreground text-center">Video chat</TableHead>
                              <TableHead className="text-xs font-medium text-muted-foreground text-right">Action</TableHead>
                           </TableRow>
                        </TableHeader>
                        <TableBody>
-                          {paginatedUsers.map((u) => (
+                          {paginatedUsers.map((u) => {
+                            const ud = getUserDetails(state, u.id);
+                            const videoCount = ud.videoCalls?.length ?? 0;
+                            return (
                             <TableRow 
                               key={u.id} 
                               className="border-slate-50 group hover:bg-slate-50/80 transition-colors cursor-pointer"
@@ -797,13 +892,20 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                                      <p className="text-xs text-muted-foreground">Total Volume</p>
                                   </div>
                                </TableCell>
+                               <TableCell className="py-4 text-center">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <Video className="w-4 h-4 text-slate-400" />
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{videoCount}</span>
+                                  </div>
+                               </TableCell>
                                <TableCell className="py-4 text-right">
                                   <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-emerald-600" onClick={(e) => { e.stopPropagation(); setSelectedRegistryUser(u); setView("detail"); }}>
                                      <Eye className="w-4 h-4" />
                                   </Button>
                                </TableCell>
                             </TableRow>
-                          ))}
+                          );
+                          })}
                        </TableBody>
                     </Table>
 
@@ -893,26 +995,28 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                 </div>
               </div>
 
-              {/* Nav Tabs */}
-              <div className="mt-6">
+              {/* Nav Tabs - scrollable on small viewports so all tabs stay visible */}
+              <div className="mt-6 w-full min-w-0 overflow-x-auto pb-1 -mx-1 px-1">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg">
+                  <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg w-max min-w-full inline-flex flex-nowrap">
                     {[
                       { id: "overview", label: "Overview", icon: Globe },
+                      ...(selectedRegistryUser && isArtisanalUser(selectedRegistryUser) ? [{ id: "artisanal", label: "Artisanal profile", icon: FileCheck }] : []),
                       { id: "kyc", label: "Identity & KYC", icon: ShieldCheck },
                       { id: "facilities", label: "Facilities & Addresses", icon: Building },
                       { id: "orders", label: "Orders", icon: Box },
                       { id: "financial", label: "Financial History", icon: CreditCard },
                       { id: "security", label: "Security & Access", icon: Lock },
+                      { id: "videochat", label: "Video chat", icon: Video },
                       { id: "notes", label: "Communication & Notes", icon: MessageSquare }
                     ].map((tab) => (
                       <TabsTrigger 
                         key={tab.id} 
                         value={tab.id}
-                        className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 flex items-center gap-2"
+                        className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 flex items-center gap-2 shrink-0"
                       >
-                        <tab.icon className="w-4 h-4" />
-                        {tab.label}
+                        <tab.icon className="w-4 h-4 shrink-0" />
+                        <span className="whitespace-nowrap">{tab.label}</span>
                       </TabsTrigger>
                     ))}
                   </TabsList>
@@ -1109,6 +1213,181 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                            </div>
                         </Card>
                       </div>
+                    </motion.div>
+                  )}
+
+                  {/* ARTISANAL PROFILE (ASM REGULATORY ONBOARDING) — seller only, not buyers */}
+                  {activeTab === "artisanal" && selectedRegistryUser && isArtisanalUser(selectedRegistryUser) && (
+                    <motion.div key="artisanal" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-10">
+                      <Card className="border-none shadow-sm p-6">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">ASM Regulatory Onboarding</h4>
+                        <p className="text-xs text-muted-foreground mb-6">Artisanal users here are seller only (not buyers). All details collected from this artisanal seller in the app. Review and approve or reject the entire profile.</p>
+                        {userDetails.artisanalProfile ? (
+                          <>
+                            <ArtisanalProfileDisplay profile={userDetails.artisanalProfile} />
+                            <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                              <span className="text-xs text-muted-foreground">
+                                Status: {userDetails.artisanalProfileStatus === "approved" ? "Approved" : userDetails.artisanalProfileStatus === "rejected" ? "Rejected" : "Pending review"}
+                              </span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {userDetails.artisanalProfileStatus !== "approved" && (
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { dispatch({ type: "UPDATE_ARTISANAL_PROFILE_STATUS", payload: { userId: selectedRegistryUser.id, status: "approved" } }); toast.success("Profile approved", { description: `${selectedRegistryUser.name} is now verified as artisanal seller.` }); }}>
+                                    Approve
+                                  </Button>
+                                )}
+                                {userDetails.artisanalProfileStatus !== "rejected" && (
+                                  <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-900/20" onClick={() => { dispatch({ type: "UPDATE_ARTISANAL_PROFILE_STATUS", payload: { userId: selectedRegistryUser.id, status: "rejected" } }); toast.success("Profile rejected", { description: "Artisanal profile has been rejected." }); }}>
+                                    Reject
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="py-12 text-center rounded-lg border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
+                            <FileCheck className="h-12 w-12 mx-auto text-slate-400 dark:text-slate-500 mb-3" />
+                            <p className="text-sm text-muted-foreground">No ASM onboarding profile submitted yet.</p>
+                            <p className="text-xs text-muted-foreground mt-1">Data will appear here when this user completes the Artisanal Profile flow in the app.</p>
+                          </div>
+                        )}
+                      </Card>
+
+                      <Card className="border-none shadow-sm p-6">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Document requests</h4>
+                        <p className="text-xs text-muted-foreground mb-4">After they enter the homepage, you can request documents from this artisanal user (e.g. Mining License, ASM Verification, PPE/Equipment receipt, Incident Report). You send the request to the user via the app (they receive it in the app) or by email. Requests you send via the app are recorded here.</p>
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                          <span className="text-xs text-muted-foreground">{(userDetails.artisanalDocumentRequests?.length ?? 0)} request(s) sent</span>
+                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setDocRequestDialogOpen(true)}>
+                            <FileCheck className="w-4 h-4" />
+                            Send document request
+                          </Button>
+                        </div>
+                        {(userDetails.artisanalDocumentRequests?.length ?? 0) === 0 ? (
+                          <div className="py-8 text-center rounded-lg border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
+                            <p className="text-xs text-muted-foreground">No document requests sent yet. Send a request via app notification or email.</p>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Document type</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Sent via</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Sent at</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {(userDetails.artisanalDocumentRequests ?? []).map((req) => (
+                                  <TableRow key={req.id}>
+                                    <TableCell className="text-sm max-w-[220px]" title={req.message ? `${req.documentType}: ${req.message}` : req.documentType}>{req.documentType}{req.message ? ` — ${req.message.length > 40 ? req.message.slice(0, 40) + "…" : req.message}` : ""}</TableCell>
+                                    <TableCell className="text-xs">{req.sentVia === "app" ? "App notification" : "Email"}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{req.sentAt}</TableCell>
+                                    <TableCell><Badge variant="outline" className="text-xs">{req.status}</Badge></TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </Card>
+
+                      <Card className="border-none shadow-sm p-6">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Asset requests</h4>
+                        <p className="text-xs text-muted-foreground mb-4">When this artisanal user requests equipment in the app (Certified PPE Kit, Pneumatic Drill Unit, or Institutional Pump from Asset Hub), the request appears here. Price and CAP (repayment period) are linked to this user&apos;s transactions—repayment is tracked in their transaction history.</p>
+                        {(userDetails.artisanalAssetRequests?.length ?? 0) === 0 ? (
+                          <div className="py-8 text-center rounded-lg border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
+                            <p className="text-xs text-muted-foreground">No asset requests yet. Requests from the app will appear here.</p>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Asset type</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Price / CAP</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Requested at</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Status</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Transactions</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground text-right">Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {(userDetails.artisanalAssetRequests ?? []).map((req) => (
+                                  <TableRow key={req.id}>
+                                    <TableCell className="text-sm">{req.assetType}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground" title="Linked to this user's repayment transactions">{req.priceCap}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{req.requestedAt}</TableCell>
+                                    <TableCell><Badge variant="outline" className="text-xs">{req.status}</Badge></TableCell>
+                                    <TableCell className="text-xs">
+                                      <Button variant="ghost" size="sm" className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" onClick={() => toast.info("Transactions", { description: "View this user's transactions for price/CAP repayment." })}>
+                                        View
+                                      </Button>
+                                    </TableCell>
+                                    <TableCell className="text-xs text-right">
+                                      {req.status === "pending" && selectedRegistryUser && (
+                                        <div className="flex items-center justify-end gap-1">
+                                          <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-900/20" onClick={() => { dispatch({ type: "UPDATE_ARTISANAL_ASSET_REQUEST", payload: { userId: selectedRegistryUser.id, requestId: req.id, status: "rejected" } }); toast.success("Request rejected", { description: `${req.assetType} request has been rejected.` }); }}>
+                                            Reject
+                                          </Button>
+                                          <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => { dispatch({ type: "UPDATE_ARTISANAL_ASSET_REQUEST", payload: { userId: selectedRegistryUser.id, requestId: req.id, status: "approved" } }); toast.success("Request approved", { description: `${req.assetType} request approved. You can mark it fulfilled when equipment is delivered.` }); }}>
+                                            Approve
+                                          </Button>
+                                        </div>
+                                      )}
+                                      {req.status === "approved" && selectedRegistryUser && (
+                                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { dispatch({ type: "UPDATE_ARTISANAL_ASSET_REQUEST", payload: { userId: selectedRegistryUser.id, requestId: req.id, status: "fulfilled" } }); toast.success("Marked fulfilled", { description: `${req.assetType} has been marked as fulfilled.` }); }}>
+                                          Mark fulfilled
+                                        </Button>
+                                      )}
+                                      {(req.status === "rejected" || req.status === "fulfilled") && <span className="text-muted-foreground">—</span>}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </Card>
+
+                      <Card className="border-none shadow-sm p-6">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Incident / emergency log</h4>
+                        <p className="text-xs text-muted-foreground mb-4">When this user is in an emergency and submits an incident (category, report, evidence) or dispatches an emergency alert in the app, it appears here as part of their profile.</p>
+                        {(userDetails.artisanalIncidentLog?.length ?? 0) === 0 ? (
+                          <div className="py-8 text-center rounded-lg border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
+                            <p className="text-xs text-muted-foreground">No incidents or emergency alerts yet.</p>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Category</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Summary</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Evidence</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Emergency alert</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Dispatched at</TableHead>
+                                  <TableHead className="text-xs font-medium text-muted-foreground">Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {(userDetails.artisanalIncidentLog ?? []).map((inc) => (
+                                  <TableRow key={inc.id} className={inc.emergencyAlertDispatched ? "bg-red-50/50 dark:bg-red-950/20" : undefined}>
+                                    <TableCell className="text-sm">{inc.category}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground max-w-[200px]" title={inc.detailedReport}>{inc.detailedReport ? (inc.detailedReport.length > 50 ? inc.detailedReport.slice(0, 50) + "…" : inc.detailedReport) : "—"}</TableCell>
+                                    <TableCell className="text-xs">{inc.evidenceSubmitted ? "Yes" : "No"}</TableCell>
+                                    <TableCell>
+                                      {inc.emergencyAlertDispatched ? <Badge variant="destructive" className="text-xs">Dispatched</Badge> : <span className="text-xs text-muted-foreground">—</span>}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{inc.emergencyAlertDispatched ? inc.dispatchedAt : "—"}</TableCell>
+                                    <TableCell><Badge variant="outline" className="text-xs">{inc.status}</Badge></TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </Card>
                     </motion.div>
                   )}
 
@@ -1815,11 +2094,119 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                     </motion.div>
                   )}
 
+                  {activeTab === "videochat" && (
+                    <motion.div key="videochat" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-8">
+                      <Card className="border-none shadow-sm p-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                          <div>
+                            <h4 className="text-base font-semibold text-slate-900 dark:text-white">Video call / chat</h4>
+                            <p className="text-sm text-muted-foreground mt-1">Links sent to this user (WhatsApp, Google Meet, Zoom, etc.). Sent via app notification or email. All videos are recorded in their user data.</p>
+                          </div>
+                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setVideoCallDialogOpen(true)}>
+                            <Video className="w-4 h-4" />
+                            Send video call link
+                          </Button>
+                        </div>
+                        {(userDetails.videoCalls?.length ?? 0) === 0 ? (
+                          <div className="py-12 text-center rounded-lg border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
+                            <Video className="h-12 w-12 mx-auto text-slate-400 dark:text-slate-500 mb-3" />
+                            <p className="text-sm text-muted-foreground mb-2">No video calls recorded for this user yet.</p>
+                            <p className="text-xs text-muted-foreground mb-4">Send a link via app notification or email to start.</p>
+                            <Button size="sm" variant="outline" onClick={() => setVideoCallDialogOpen(true)}>Send video call link</Button>
+                          </div>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="text-xs font-medium text-muted-foreground">Platform</TableHead>
+                                <TableHead className="text-xs font-medium text-muted-foreground">Link</TableHead>
+                                <TableHead className="text-xs font-medium text-muted-foreground">Sent via</TableHead>
+                                <TableHead className="text-xs font-medium text-muted-foreground">Date</TableHead>
+                                <TableHead className="text-xs font-medium text-muted-foreground">Recording</TableHead>
+                                <TableHead className="text-xs font-medium text-muted-foreground">Note</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {(userDetails.videoCalls ?? []).map((vc) => (
+                                <TableRow key={vc.id}>
+                                  <TableCell><Badge variant="outline" className="text-xs">{vc.platform}</Badge></TableCell>
+                                  <TableCell className="max-w-[200px]">
+                                    <a href={vc.link} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline truncate block">{vc.link}</a>
+                                  </TableCell>
+                                  <TableCell className="text-xs">{vc.sentVia === "app" ? "App notification" : "Email"}</TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">{vc.sentAt}</TableCell>
+                                  <TableCell className="text-xs">
+                                    {vc.recordingUrl ? (
+                                      <a href={vc.recordingUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 dark:text-emerald-400 hover:underline">View recording</a>
+                                    ) : (
+                                      <span className="text-muted-foreground">—</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground max-w-[180px]">{vc.note ?? "—"}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </Card>
+                    </motion.div>
+                  )}
+
                   {activeTab === "notes" && (
                     <motion.div key="notes" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-12">
                        <div className="w-full max-w-[800px] mx-auto space-y-8">
-                          {userDetails.activityLog.map((event) => (
-                            <Card key={event.id} className="border-none shadow-sm rounded-lg bg-white p-8 relative overflow-hidden group">
+                          {selectedEvent ? (
+                            /* Chat history / event detail page */
+                            <div className="space-y-6">
+                              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-emerald-600 -ml-2 gap-2" onClick={() => setSelectedEvent(null)}>
+                                <ArrowLeft className="w-4 h-4" />
+                                Back to activity
+                              </Button>
+                              <Card className="border-none shadow-sm rounded-lg bg-white p-8 relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 opacity-40" />
+                                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                                  <Badge className={`font-black text-[8px] uppercase tracking-[0.2em] px-3 h-6 border-none ${selectedEvent.type === "Admin" ? "bg-amber-500 text-white" : "bg-emerald-500 text-white"}`}>{selectedEvent.type}</Badge>
+                                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2"><Clock className="w-3 h-3" /> {selectedEvent.date} • {selectedEvent.time}</span>
+                                </div>
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-2">{selectedEvent.title}</h2>
+                                <p className="text-sm font-bold text-slate-500 leading-relaxed italic mb-6">"{selectedEvent.description}"</p>
+                                <p className="text-xs text-muted-foreground mb-6">Source: {selectedEvent.source}</p>
+                                {selectedEvent.metadata?.fullDetails && (
+                                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-4 mb-6">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Full details</p>
+                                    <p className="text-sm text-slate-700 dark:text-slate-300">{selectedEvent.metadata.fullDetails}</p>
+                                  </div>
+                                )}
+                                <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
+                                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Chat history / internal notes</h4>
+                                  {(selectedEvent.notes?.length ?? 0) === 0 ? (
+                                    <p className="text-sm text-muted-foreground">No internal notes for this event.</p>
+                                  ) : (
+                                    <div className="space-y-4">
+                                      {selectedEvent.notes!.map((n, i) => (
+                                        <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-4">
+                                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                                            <span className="font-semibold text-sm text-slate-900 dark:text-white">{n.admin}</span>
+                                            <span className="text-xs text-muted-foreground">{n.timestamp}</span>
+                                          </div>
+                                          <p className="text-sm text-slate-600 dark:text-slate-400">{n.text}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </Card>
+                            </div>
+                          ) : (
+                          userDetails.activityLog.map((event) => (
+                            <Card
+                              key={event.id}
+                              role="button"
+                              tabIndex={0}
+                              className="border-none shadow-sm rounded-lg bg-white p-8 relative overflow-hidden group cursor-pointer hover:ring-2 hover:ring-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-shadow"
+                              onClick={() => setSelectedEvent(event)}
+                              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedEvent(event); } }}
+                            >
                                <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 opacity-40" />
                                <div className="flex items-center justify-between mb-6">
                                   <Badge className={`font-black text-[8px] uppercase tracking-[0.2em] px-3 h-6 border-none ${event.type === 'Admin' ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white'}`}>{event.type}</Badge>
@@ -1831,10 +2218,10 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                                </div>
                                <div className="pt-6 mt-6 border-t border-slate-50 flex items-center justify-between">
                                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Source: {event.source}</span>
-                                  <Button variant="ghost" className="h-8 px-4 text-[9px] font-black uppercase text-slate-400 hover:text-emerald-600 transition-colors" onClick={() => setSelectedEvent(event)}>Details <ChevronRight className="w-3 h-3 ml-1" /></Button>
+                                  <Button variant="ghost" className="h-8 px-4 text-[9px] font-black uppercase text-slate-400 hover:text-emerald-600 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedEvent(event); }}>Details <ChevronRight className="w-3 h-3 ml-1" /></Button>
                                </div>
                             </Card>
-                          ))}
+                          )))}
                        </div>
                     </motion.div>
                   )}
@@ -1954,6 +2341,103 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
         </DialogContent>
       </Dialog>
 
+      <Dialog open={videoCallDialogOpen} onOpenChange={(open) => { setVideoCallDialogOpen(open); if (!open) { setVideoCallLink(""); setVideoCallNote(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send video call link</DialogTitle>
+            <DialogDescription>Send a WhatsApp, Google Meet, Zoom or other link to this user. Delivered via app notification or email. Recorded in their user data.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Platform</Label>
+              <Select value={videoCallPlatform} onValueChange={(v) => setVideoCallPlatform(v as VideoCallEntry["platform"])}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                  <SelectItem value="Google Meet">Google Meet</SelectItem>
+                  <SelectItem value="Zoom">Zoom</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="vc-link">Link (meeting or chat URL) *</Label>
+              <Input id="vc-link" value={videoCallLink} onChange={(e) => setVideoCallLink(e.target.value)} placeholder="https://meet.google.com/... or https://wa.me/..." />
+            </div>
+            <div className="grid gap-2">
+              <Label>Send via</Label>
+              <Select value={videoCallSentVia} onValueChange={(v) => setVideoCallSentVia(v as "app" | "email")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="app">App notification</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="vc-note">Note (optional)</Label>
+              <Input id="vc-note" value={videoCallNote} onChange={(e) => setVideoCallNote(e.target.value)} placeholder="e.g. KYC verification call" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVideoCallDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSendVideoCallLink} className="bg-emerald-600 hover:bg-emerald-700">Send link</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={docRequestDialogOpen} onOpenChange={(open) => { setDocRequestDialogOpen(open); if (!open) setDocRequestMessage(""); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send document request</DialogTitle>
+            <DialogDescription>Request a document from this artisanal user after they enter the homepage. You send the request to the user via the app (they receive it in the app) or by email. The request is recorded in the dashboard.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Document type</Label>
+              <Select value={docRequestType} onValueChange={(v) => setDocRequestType(v as ArtisanalDocumentRequest["documentType"])}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Mining License">Mining License</SelectItem>
+                  <SelectItem value="ASM Verification Bundle">ASM Verification Bundle</SelectItem>
+                  <SelectItem value="Certified PPE Kit Receipt">Certified PPE Kit Receipt</SelectItem>
+                  <SelectItem value="Equipment Receipt (Drill/Pump)">Equipment Receipt (Drill/Pump)</SelectItem>
+                  <SelectItem value="Incident Report / Evidence">Incident Report / Evidence</SelectItem>
+                  <SelectItem value="Safety Compliance Document">Safety Compliance Document</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="docreq-message">Message to user (optional)</Label>
+              <Textarea id="docreq-message" value={docRequestMessage} onChange={(e) => setDocRequestMessage(e.target.value)} placeholder="e.g. Please upload a photo of your mining license." rows={3} className="resize-none" />
+            </div>
+            <div className="grid gap-2">
+              <Label>Send via</Label>
+              <Select value={docRequestSentVia} onValueChange={(v) => setDocRequestSentVia(v as "app" | "email")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="app">App notification (user receives in app)</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDocRequestDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSendDocumentRequest} className="bg-emerald-600 hover:bg-emerald-700">Send request</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isManualRegistrationOpen} onOpenChange={setIsManualRegistrationOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2001,7 +2485,7 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedEvent} onOpenChange={(open) => !open && setSelectedEvent(null)}>
+      <Dialog open={!!selectedEvent && activeTab !== "notes"} onOpenChange={(open) => !open && setSelectedEvent(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{selectedEvent?.title}</DialogTitle>

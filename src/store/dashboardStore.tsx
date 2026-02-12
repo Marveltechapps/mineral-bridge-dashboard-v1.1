@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, ReactNode } from "react";
 import type { Mineral } from "../components/admin/minerals/types";
 import type { MineralSubmission } from "../types/sellSubmissions";
 import type { UserDetailSet } from "../types/userDetails";
+import type { VideoCallEntry } from "../types/userDetails";
 import type { VerificationLogEntry, KycVerificationResult } from "../types/verification";
 import { initialMinerals } from "../data/initialMinerals";
 import { initialSellSubmissions } from "../data/initialSellSubmissions";
@@ -50,6 +51,8 @@ export interface SentToUser {
   date: string;
   channel: string;
   detail?: string;
+  /** e.g. "Wise (international)", "SWIFT", "Domestic bank" */
+  paymentChannel?: string;
 }
 
 /** 3rd party logistics details per order/shipment ID (dashboard input → shown in app as link/QR). */
@@ -156,6 +159,10 @@ export interface Order {
   institutionalPermitNumber?: string;
   /** Buy flow: whether order is escrow protected (from app review step). */
   escrowProtected?: boolean;
+  /** Buyer country (from registry user); used for international classification. */
+  buyerCountry?: string;
+  /** Seller/facility country; used for international classification. */
+  sellerCountry?: string;
 }
 
 export interface Transaction {
@@ -179,9 +186,32 @@ export interface Transaction {
     reference?: string;
     network?: string;
     hash?: string;
+    swiftBic?: string;
   };
   settlementNote: string;
   adminNotes: { admin: string; text: string; date: string }[];
+  /** International transaction: payer country (e.g. where funds originate). */
+  payerCountry?: string;
+  /** International transaction: beneficiary country (e.g. where funds are sent). */
+  beneficiaryCountry?: string;
+  /** Source currency when FX is applied (e.g. USD). */
+  sourceCurrency?: string;
+  /** Target/settlement currency when different from source (e.g. GHS). */
+  targetCurrency?: string;
+  /** FX rate used for conversion (e.g. "12.45"). */
+  fxRate?: string;
+  /** Date of FX rate used. */
+  fxRateDate?: string;
+  /** Payment channel: Domestic, SWIFT, Wise, SEPA, Crypto, etc. */
+  paymentChannel?: string;
+  /** Explicit flag for international settlement. */
+  isInternational?: boolean;
+  /** Compliance: when sanctions were checked. */
+  sanctionsCheckedAt?: string;
+  /** Compliance: Clear | Flagged. */
+  sanctionsResult?: "Clear" | "Flagged";
+  /** Export control note or document ref. */
+  exportControlNote?: string;
 }
 
 export interface Facility {
@@ -358,6 +388,8 @@ const initialBuyOrders: Order[] = [
       { type: "qr_or_bank", label: "Bank details / QR for payment", date: "Jan 21, 2026", channel: "App", detail: "Sent after price confirmation" },
       { type: "transport_link", label: "Transport tracking link", date: "Jan 25, 2026", channel: "App", detail: "Armored transport to facility; tracking + QR" },
     ],
+    buyerCountry: "Ghana",
+    sellerCountry: "Ghana",
   },
   {
     id: "B-ORD-5512",
@@ -424,8 +456,10 @@ const initialBuyOrders: Order[] = [
       { event: "Price Confirmed", admin: "Team", date: "Feb 03, 11:00 AM" },
     ],
     sentToUser: [
-      { type: "qr_or_bank", label: "Bank details for payment", date: "Feb 03, 2026", channel: "App", detail: "Wise / SEPA details sent" },
+      { type: "qr_or_bank", label: "Bank details for payment", date: "Feb 03, 2026", channel: "App", detail: "Wise / SEPA details sent", paymentChannel: "Wise (international)" },
     ],
+    buyerCountry: "Switzerland",
+    sellerCountry: "Switzerland",
   },
   {
     id: "B-ORD-5520",
@@ -477,6 +511,8 @@ const initialBuyOrders: Order[] = [
       { event: "Order Submitted", admin: "System", date: "Feb 08, 14:30 PM" },
     ],
     sentToUser: [],
+    buyerCountry: "Ghana",
+    sellerCountry: "DRC",
   },
 ];
 
@@ -512,6 +548,8 @@ const initialSellOrders: Order[] = [
       { event: "Order Submitted", admin: "System", date: "Feb 04, 11:20 AM" },
       { event: "AI Estimation Generated", admin: "AI-Price-Engine", date: "Feb 04, 11:21 AM" },
     ],
+    buyerCountry: "Ghana",
+    sellerCountry: "Ghana",
   },
 ];
 
@@ -538,6 +576,10 @@ const initialTransactions: Transaction[] = [
     },
     settlementNote: "Funds released after price confirmation.",
     adminNotes: [{ admin: "Miller", text: "Verified bank transfer slip.", date: "Jan 28, 2026" }],
+    payerCountry: "Ghana",
+    beneficiaryCountry: "Ghana",
+    paymentChannel: "Domestic",
+    isInternational: false,
   },
   {
     id: "TX-9912-MB",
@@ -556,6 +598,14 @@ const initialTransactions: Transaction[] = [
     paymentDetails: { network: "USDT (ERC-20)", hash: "0x7a2...f892" },
     settlementNote: "Funds credited after verification.",
     adminNotes: [],
+    payerCountry: "Switzerland",
+    beneficiaryCountry: "Ghana",
+    sourceCurrency: "USD",
+    targetCurrency: "USD",
+    paymentChannel: "Blockchain Settlement",
+    isInternational: true,
+    sanctionsCheckedAt: "Feb 04, 2026",
+    sanctionsResult: "Clear",
   },
 ];
 
@@ -611,6 +661,7 @@ export type DashboardAction =
   | { type: "UPDATE_ORDER"; payload: Order }
   | { type: "SET_TRANSACTIONS"; payload: Transaction[] }
   | { type: "ADD_TRANSACTION"; payload: Transaction }
+  | { type: "UPDATE_TRANSACTION"; payload: Transaction }
   | { type: "SET_FACILITIES"; payload: Facility[] }
   | { type: "ADD_FACILITY"; payload: Facility }
   | { type: "REMOVE_FACILITY"; payload: string }
@@ -631,7 +682,11 @@ export type DashboardAction =
   | { type: "REMOVE_MINERAL_SUBMISSION"; payload: string }
   | { type: "RECORD_VERIFICATION"; payload: VerificationLogEntry }
   | { type: "SET_KYC_VERIFICATION"; payload: { userId: string; result: KycVerificationResult } }
-  | { type: "SET_LOGISTICS_DETAILS"; payload: LogisticsDetails };
+  | { type: "SET_LOGISTICS_DETAILS"; payload: LogisticsDetails }
+  | { type: "ADD_VIDEO_CALL"; payload: { userId: string; entry: VideoCallEntry } }
+  | { type: "UPDATE_ARTISANAL_PROFILE_STATUS"; payload: { userId: string; status: "approved" | "rejected" } }
+  | { type: "ADD_ARTISANAL_DOCUMENT_REQUEST"; payload: { userId: string; entry: import("../types/userDetails").ArtisanalDocumentRequest } }
+  | { type: "UPDATE_ARTISANAL_ASSET_REQUEST"; payload: { userId: string; requestId: string; status: "approved" | "fulfilled" | "rejected"; adminNote?: string } };
 
 function dashboardReducer(state: DashboardState, action: DashboardAction): DashboardState {
   switch (action.type) {
@@ -691,6 +746,10 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
       return { ...state, transactions: action.payload };
     case "ADD_TRANSACTION":
       return { ...state, transactions: [...state.transactions, action.payload] };
+    case "UPDATE_TRANSACTION": {
+      const t = action.payload;
+      return { ...state, transactions: state.transactions.map((x) => (x.id === t.id ? t : x)) };
+    }
     case "SET_FACILITIES":
       return { ...state, facilities: action.payload };
     case "ADD_FACILITY":
@@ -749,6 +808,46 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
       return {
         ...state,
         logisticsDetails: { ...state.logisticsDetails, [d.orderId]: d },
+      };
+    }
+    case "ADD_VIDEO_CALL": {
+      const { userId, entry } = action.payload;
+      const existing = state.userDetails[userId] ?? { loginActivity: [], devices: [], securityNotes: [], activityLog: [], videoCalls: [] };
+      const videoCalls = [...(existing.videoCalls ?? []), entry];
+      return {
+        ...state,
+        userDetails: { ...state.userDetails, [userId]: { ...existing, videoCalls } },
+      };
+    }
+    case "UPDATE_ARTISANAL_PROFILE_STATUS": {
+      const { userId, status } = action.payload;
+      const existing = state.userDetails[userId] ?? { loginActivity: [], devices: [], securityNotes: [], activityLog: [], videoCalls: [] };
+      return {
+        ...state,
+        userDetails: { ...state.userDetails, [userId]: { ...existing, artisanalProfileStatus: status } },
+        registryUsers: state.registryUsers.map((u) =>
+          u.id === userId ? { ...u, status: status === "approved" ? "Verified" : u.status === "Under Review" ? "Limited" : u.status } : u
+        ),
+      };
+    }
+    case "ADD_ARTISANAL_DOCUMENT_REQUEST": {
+      const { userId, entry } = action.payload;
+      const existing = state.userDetails[userId] ?? { loginActivity: [], devices: [], securityNotes: [], activityLog: [], videoCalls: [] };
+      const artisanalDocumentRequests = [...(existing.artisanalDocumentRequests ?? []), entry];
+      return {
+        ...state,
+        userDetails: { ...state.userDetails, [userId]: { ...existing, artisanalDocumentRequests } },
+      };
+    }
+    case "UPDATE_ARTISANAL_ASSET_REQUEST": {
+      const { userId, requestId, status, adminNote } = action.payload;
+      const existing = state.userDetails[userId] ?? { loginActivity: [], devices: [], securityNotes: [], activityLog: [], videoCalls: [] };
+      const artisanalAssetRequests = (existing.artisanalAssetRequests ?? []).map((r) =>
+        r.id === requestId ? { ...r, status, ...(adminNote !== undefined ? { adminNote } : {}) } : r
+      );
+      return {
+        ...state,
+        userDetails: { ...state.userDetails, [userId]: { ...existing, artisanalAssetRequests } },
       };
     }
     default:
@@ -824,7 +923,27 @@ export function getRegistryUserName(registryUsers: RegistryUserRow[], userId?: s
   return u ? u.name : "—";
 }
 
-const EMPTY_USER_DETAILS: UserDetailSet = { loginActivity: [], devices: [], securityNotes: [], activityLog: [] };
+/** Derive whether an order is international (cross-border): buyer country ≠ facility/seller country. */
+export function getOrderIsInternational(order: Order, registryUsers: RegistryUserRow[]): boolean {
+  const buyerCountry = order.buyerCountry ?? (order.userId ? registryUsers.find((r) => r.id === order.userId)?.country : undefined);
+  const sellerCountry = order.sellerCountry ?? order.facility?.country ?? order.deliveryLocation?.country;
+  if (!buyerCountry || !sellerCountry) return false;
+  return buyerCountry.trim() !== sellerCountry.trim();
+}
+
+/** Derive whether a transaction is international (from explicit flag or linked order). */
+export function getTransactionIsInternational(
+  tx: Transaction,
+  allOrders: Order[],
+  registryUsers: RegistryUserRow[]
+): boolean {
+  if (tx.isInternational === true) return true;
+  const order = allOrders.find((o) => o.id === tx.orderId);
+  if (order) return getOrderIsInternational(order, registryUsers);
+  return !!(tx.payerCountry && tx.beneficiaryCountry && tx.payerCountry !== tx.beneficiaryCountry);
+}
+
+const EMPTY_USER_DETAILS: UserDetailSet = { loginActivity: [], devices: [], securityNotes: [], activityLog: [], videoCalls: [] };
 
 export function getUserDetails(state: DashboardState, userId?: string): UserDetailSet {
   if (!userId) return EMPTY_USER_DETAILS;

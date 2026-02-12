@@ -2,9 +2,15 @@ import type { UserDetailSet } from "../types/userDetails";
 
 const DEFAULT_USER_ID = "MB-USR-4412-S";
 const USER_8821 = "MB-USR-8821-B";
+const ARTISANAL_CAMEROON = "MB-USR-2210-S";
+const ARTISANAL_ETHIOPIA = "MB-USR-4491-S";
 
 export const initialUserDetails: Record<string, UserDetailSet> = {
   [DEFAULT_USER_ID]: {
+    videoCalls: [
+      { id: "vc-001", platform: "Google Meet", link: "https://meet.google.com/abc-defg-hij", sentVia: "app", sentAt: "Feb 10, 2026 • 10:00 AM", recordingUrl: "https://drive.example.com/recording-1", note: "KYC verification call" },
+      { id: "vc-002", platform: "WhatsApp", link: "https://wa.me/233245550192", sentVia: "email", sentAt: "Feb 08, 2026 • 2:30 PM" },
+    ],
     loginActivity: [
       { id: "LG-001", date: "Feb 05, 2026", time: "09:12 AM", method: "Phone + OTP", device: "iPhone 15 Pro", location: "Accra, Ghana", ip: "154.160.XXX.XX", status: "Success" },
       { id: "LG-002", date: "Feb 04, 2026", time: "11:30 PM", method: "Email + OTP", device: "iPhone 15 Pro", location: "Kumasi, Ghana", ip: "154.161.XXX.XX", status: "Success" },
@@ -27,6 +33,7 @@ export const initialUserDetails: Record<string, UserDetailSet> = {
     ],
   },
   [USER_8821]: {
+    videoCalls: [],
     loginActivity: [
       { id: "LG-101", date: "Feb 05, 2026", time: "08:30 AM", method: "Email + OTP", device: "Chrome / Windows", location: "Accra, Ghana", ip: "154.160.XXX.YY", status: "Success" },
     ],
@@ -36,6 +43,70 @@ export const initialUserDetails: Record<string, UserDetailSet> = {
     securityNotes: [],
     activityLog: [
       { id: "EV-101", type: "User", title: "Profile Updated", description: "Company name and contact details changed.", source: "Mobile App", date: "Feb 04, 2026", time: "03:00 PM", metadata: {}, notes: [] },
+    ],
+  },
+  [ARTISANAL_CAMEROON]: {
+    videoCalls: [],
+    loginActivity: [],
+    devices: [],
+    securityNotes: [],
+    activityLog: [],
+    artisanalProfile: {
+      operationType: "Independent Miner",
+      country: "Cameroon",
+      stateProvince: "East",
+      district: "Kadey",
+      villageTown: "Batouri",
+      gpsLocation: "4.4333° N, 14.3667° E",
+      miningAreaType: ["River / Alluvial"],
+      mineralType: "Gold",
+      miningMethod: "Manual",
+      yearsOfExperience: 8,
+      numberOfWorkers: 4,
+      miningLicenseUploaded: true,
+      cooperativeGroup: false,
+      childLaborDeclaration: true,
+      safePracticesEnvironmental: true,
+      submittedAt: "Feb 10, 2026 • 2:15 PM",
+    },
+    artisanalProfileStatus: "pending",
+    artisanalDocumentRequests: [],
+    artisanalAssetRequests: [
+      { id: "ast-1", assetType: "Certified PPE Kit", priceCap: "$150 • 3 months CAP", requestedAt: "Feb 09, 2026 • 11:20 AM", status: "pending" },
+    ],
+    artisanalIncidentLog: [],
+  },
+  [ARTISANAL_ETHIOPIA]: {
+    videoCalls: [],
+    loginActivity: [],
+    devices: [],
+    securityNotes: [],
+    activityLog: [],
+    artisanalProfile: {
+      operationType: "Cooperative Group",
+      country: "Ethiopia",
+      stateProvince: "Oromia",
+      district: "West Guji",
+      villageTown: "Dawa",
+      gpsLocation: "5.5736° N, 38.2510° E",
+      miningAreaType: ["Mountain / Hard Rock", "Open Pit"],
+      mineralType: "Gold, Gemstones",
+      miningMethod: "Semi-Mech",
+      yearsOfExperience: 12,
+      numberOfWorkers: 18,
+      miningLicenseUploaded: true,
+      cooperativeGroup: true,
+      childLaborDeclaration: true,
+      safePracticesEnvironmental: true,
+      submittedAt: "Feb 11, 2026 • 9:00 AM",
+    },
+    artisanalProfileStatus: "pending",
+    artisanalDocumentRequests: [],
+    artisanalAssetRequests: [
+      { id: "ast-2", assetType: "Pneumatic Drill Unit", priceCap: "$850 • 6 months CAP", requestedAt: "Feb 11, 2026 • 2:00 PM", status: "pending" },
+    ],
+    artisanalIncidentLog: [
+      { id: "inc-1", category: "Safety Breach", detailedReport: "Minor equipment malfunction at site; no injuries. Reported for record.", evidenceSubmitted: true, emergencyAlertDispatched: true, dispatchedAt: "Feb 10, 2026 • 4:45 PM", status: "acknowledged" },
     ],
   },
 };

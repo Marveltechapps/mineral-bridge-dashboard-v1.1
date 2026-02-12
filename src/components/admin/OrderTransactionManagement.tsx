@@ -14,7 +14,9 @@ import {
   Send,
   CreditCard,
   MapPin,
-  Gem
+  Gem,
+  Globe,
+  ExternalLink
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -56,8 +58,8 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { useAllOrders, useDashboardStore, getRegistryUserName } from "../../store/dashboardStore";
-import type { Order } from "../../store/dashboardStore";
+import { useAllOrders, useDashboardStore, getRegistryUserName, getOrderIsInternational, getTransactionIsInternational } from "../../store/dashboardStore";
+import type { Order, Transaction } from "../../store/dashboardStore";
 import { toast } from "sonner";
 
 const ORDER_STATUSES = ["Order Submitted", "Awaiting Team Contact", "Sample Test Required", "Price Confirmed", "Payment Initiated", "Completed", "Cancelled"] as const;
@@ -80,9 +82,11 @@ function computeFlowStepsForOrder(order: Order, newStatus: string): { label: str
 
 export interface OrderTransactionManagementProps {
   initialTransactionId?: string;
+  /** Open full order detail page (Buyer/Seller management). */
+  onOpenFullOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
 }
 
-export function OrderTransactionManagement({ initialTransactionId }: OrderTransactionManagementProps = {}) {
+export function OrderTransactionManagement({ initialTransactionId, onOpenFullOrderDetail }: OrderTransactionManagementProps = {}) {
   const { state, dispatch } = useDashboardStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [orderForView, setOrderForView] = useState<Order | null>(null);
@@ -90,6 +94,7 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
   const [orderForCancel, setOrderForCancel] = useState<Order | null>(null);
   const [newStatus, setNewStatus] = useState<string>("");
   const [mainTab, setMainTab] = useState<"orders" | "settlements">("orders");
+  const [internationalFilter, setInternationalFilter] = useState<"all" | "domestic" | "international">("all");
   const allOrders = useAllOrders();
   const transactions = state.transactions;
   useEffect(() => {
@@ -102,15 +107,31 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
     }
   }, [initialTransactionId, state.transactions, allOrders]);
   const orders = useMemo(() => {
-    if (!searchTerm.trim()) return allOrders;
-    const q = searchTerm.toLowerCase();
-    return allOrders.filter(
-      (o) =>
-        o.id.toLowerCase().includes(q) ||
-        o.mineral.toLowerCase().includes(q) ||
-        o.facility?.name?.toLowerCase().includes(q)
-    );
-  }, [allOrders, searchTerm]);
+    let list = allOrders;
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      list = list.filter(
+        (o) =>
+          o.id.toLowerCase().includes(q) ||
+          o.mineral.toLowerCase().includes(q) ||
+          o.facility?.name?.toLowerCase().includes(q)
+      );
+    }
+    if (internationalFilter === "domestic") {
+      list = list.filter((o) => !getOrderIsInternational(o, state.registryUsers));
+    } else if (internationalFilter === "international") {
+      list = list.filter((o) => getOrderIsInternational(o, state.registryUsers));
+    }
+    return list;
+  }, [allOrders, searchTerm, internationalFilter, state.registryUsers]);
+
+  const filteredTransactions = useMemo(() => {
+    if (internationalFilter === "all") return transactions;
+    if (internationalFilter === "domestic") {
+      return transactions.filter((tx) => !getTransactionIsInternational(tx, allOrders, state.registryUsers));
+    }
+    return transactions.filter((tx) => getTransactionIsInternational(tx, allOrders, state.registryUsers));
+  }, [transactions, internationalFilter, allOrders, state.registryUsers]);
 
   const totalSettled = transactions.filter((t) => t.status === "Completed").reduce((s, t) => s + (parseFloat(t.finalAmount.replace(/[^0-9.-]/g, "")) || 0), 0);
   const pendingCount = transactions.filter((t) => t.status === "Pending").length;
@@ -193,6 +214,16 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                   />
                 </div>
                 <div className="flex gap-2">
+                  <Select value={internationalFilter} onValueChange={(v) => setInternationalFilter(v as "all" | "domestic" | "international")}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Scope" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All orders</SelectItem>
+                      <SelectItem value="domestic">Domestic only</SelectItem>
+                      <SelectItem value="international">International only</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button variant="outline" className="gap-2">
                     <Filter className="w-4 h-4" />
                     Status
@@ -207,6 +238,7 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                 <TableHead>Order ID</TableHead>
                 <TableHead>User (Registry)</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Scope</TableHead>
                 <TableHead>Mineral & Quantity</TableHead>
                 <TableHead>Facility</TableHead>
                 <TableHead>Amount</TableHead>
@@ -216,7 +248,9 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.map((order) => (
+              {orders.map((order) => {
+                const isIntl = getOrderIsInternational(order, state.registryUsers);
+                return (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium text-emerald-600">{order.id}</TableCell>
                   <TableCell className="text-sm text-slate-700 dark:text-slate-300">
@@ -225,6 +259,11 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                   <TableCell>
                     <Badge variant="outline" className={order.type === "Buy" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20" : "bg-amber-50 text-amber-700 dark:bg-amber-900/20"}>
                       {order.type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={isIntl ? "bg-violet-50 text-violet-700 dark:bg-violet-900/20 border-violet-200" : "bg-slate-50 text-slate-600 dark:bg-slate-800"}>
+                      {isIntl ? "International" : "Domestic"}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -245,7 +284,7 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{order.createdAt}</TableCell>
-                  <TableCell className="text-right">
+                <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         type="button"
@@ -257,6 +296,17 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                         <Eye className="h-4 w-4" />
                         Details
                       </Button>
+                      {onOpenFullOrderDetail && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5 px-3 text-emerald-600 border-emerald-200"
+                          onClick={(e) => { e.stopPropagation(); onOpenFullOrderDetail(order.id, order.type === "Buy" ? "buy" : "sell"); }}
+                        >
+                          Open in Order detail
+                        </Button>
+                      )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
@@ -268,6 +318,11 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                             <Eye className="mr-2 h-4 w-4" />
                             View full details
                           </DropdownMenuItem>
+                          {onOpenFullOrderDetail && (
+                            <DropdownMenuItem onClick={() => onOpenFullOrderDetail(order.id, order.type === "Buy" ? "buy" : "sell")}>
+                              Open in Order detail page
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => { setOrderForStatus(order); setNewStatus(order.status); }}>
                             <RefreshCw className="mr-2 h-4 w-4" />
                             Update Status
@@ -281,7 +336,8 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -320,7 +376,19 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Settlements (payments)</CardTitle>
-              <CardDescription className="text-muted-foreground">Payment and settlement records linked to orders. View order opens the order detail.</CardDescription>
+              <CardDescription className="text-muted-foreground">Payment and settlement records linked to orders. Filter by domestic/international.</CardDescription>
+              <div className="flex gap-2 pt-2">
+                <Select value={internationalFilter} onValueChange={(v) => setInternationalFilter(v as "all" | "domestic" | "international")}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All settlements</SelectItem>
+                    <SelectItem value="domestic">Domestic only</SelectItem>
+                    <SelectItem value="international">International only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -329,6 +397,7 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                     <TableHead>Transaction ID</TableHead>
                     <TableHead>Order ID</TableHead>
                     <TableHead>Type</TableHead>
+                    <TableHead>Scope</TableHead>
                     <TableHead>Mineral</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Method</TableHead>
@@ -338,8 +407,9 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transactions.map((tx) => {
+                  {filteredTransactions.map((tx) => {
                     const order = allOrders.find((o) => o.id === tx.orderId);
+                    const txIntl = getTransactionIsInternational(tx, allOrders, state.registryUsers);
                     return (
                       <TableRow key={tx.id}>
                         <TableCell className="font-medium text-emerald-600">{tx.id}</TableCell>
@@ -349,9 +419,14 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                             {tx.orderType}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={txIntl ? "bg-violet-50 text-violet-700 dark:bg-violet-900/20 border-violet-200" : "bg-slate-50 text-slate-600 dark:bg-slate-800"}>
+                            {txIntl ? "International" : "Domestic"}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-sm">{tx.mineral}</TableCell>
                         <TableCell className="font-medium">{tx.finalAmount}</TableCell>
-                        <TableCell className="text-sm">{tx.method ?? "—"}</TableCell>
+                        <TableCell className="text-sm">{tx.method ?? "—"}{tx.paymentChannel ? ` · ${tx.paymentChannel}` : ""}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={tx.status === "Completed" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20" : tx.status === "Pending" ? "bg-amber-50 text-amber-700 dark:bg-amber-900/20" : "bg-slate-100 text-slate-600 dark:bg-slate-800"}>
                             {tx.status}
@@ -387,6 +462,7 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
         <SheetContent className="w-full sm:max-w-[800px] overflow-y-auto p-0 flex flex-col" key={orderForView?.id}>
           {orderForView ? (() => {
             const relatedTx = state.transactions.find((t) => t.orderId === orderForView.id);
+            const orderIntl = getOrderIsInternational(orderForView, state.registryUsers);
             return (
               <div className="flex flex-col h-full">
                 <div className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-6">
@@ -401,6 +477,10 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                           <Badge variant="outline" className={orderForView.type === "Buy" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" : "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400"}>
                             {orderForView.type}
                           </Badge>
+                          <Badge variant="outline" className={orderIntl ? "bg-violet-50 text-violet-700 dark:bg-violet-900/20 border-violet-200" : "bg-slate-50 text-slate-600 dark:bg-slate-800"}>
+                            <Globe className="h-3 w-3 mr-1 inline" />
+                            {orderIntl ? "International" : "Domestic"}
+                          </Badge>
                           <Badge className={
                             orderForView.status === "Completed" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
                             orderForView.status === "Cancelled" ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" :
@@ -411,7 +491,13 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                           <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{orderForView.aiEstimatedAmount}</span>
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        {onOpenFullOrderDetail && (
+                          <Button variant="default" size="sm" className="bg-emerald-600 hover:bg-emerald-700 gap-1.5" onClick={() => { onOpenFullOrderDetail(orderForView.id, orderForView.type === "Buy" ? "buy" : "sell"); setOrderForView(null); }}>
+                            <ExternalLink className="h-4 w-4" />
+                            Open in Order detail
+                          </Button>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => { setOrderForStatus(orderForView); setOrderForView(null); }}>
                           <RefreshCw className="h-4 w-4 mr-2" />
                           Update Status
@@ -457,6 +543,22 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
 
                   <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
                     <TabsContent value="overview" className="mt-0 space-y-6">
+                      {orderIntl && (
+                        <Card className="border-none shadow-sm border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-900/20">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Globe className="h-4 w-4 text-violet-600" />
+                              International order
+                            </CardTitle>
+                            <CardDescription>Cross-border: buyer and facility/seller in different countries. Settlement may involve FX or international payment channel.</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-2 text-sm">
+                            <p><span className="text-muted-foreground">Buyer country:</span> <span className="font-medium">{orderForView.buyerCountry ?? state.registryUsers.find((u) => u.id === orderForView.userId)?.country ?? "—"}</span></p>
+                            <p><span className="text-muted-foreground">Facility / seller country:</span> <span className="font-medium">{orderForView.sellerCountry ?? orderForView.facility?.country ?? "—"}</span></p>
+                            <p><span className="text-muted-foreground">Order currency:</span> <span className="font-medium">{orderForView.currency}</span></p>
+                          </CardContent>
+                        </Card>
+                      )}
                       <Card className="border-none shadow-sm">
                         <CardHeader className="pb-2">
                           <CardTitle className="text-base">Order & user</CardTitle>
@@ -661,7 +763,7 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                                 </div>
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Method</Label>
-                                  <p className="font-medium">{relatedTx.method}</p>
+                                  <p className="font-medium">{relatedTx.method}{relatedTx.paymentChannel ? ` · ${relatedTx.paymentChannel}` : ""}</p>
                                 </div>
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Date & time</Label>
@@ -672,6 +774,19 @@ export function OrderTransactionManagement({ initialTransactionId }: OrderTransa
                                   <p className="text-sm text-muted-foreground">{relatedTx.settlementNote}</p>
                                 </div>
                               </div>
+                              {(relatedTx.isInternational || relatedTx.payerCountry || relatedTx.beneficiaryCountry || relatedTx.sourceCurrency || relatedTx.fxRate) && (
+                                <div className="p-3 rounded-md border border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-900/20 space-y-2">
+                                  <Label className="text-xs font-medium text-violet-700 dark:text-violet-300">International settlement</Label>
+                                  {(relatedTx.payerCountry || relatedTx.beneficiaryCountry) && (
+                                    <p className="text-sm">Payer: {relatedTx.payerCountry ?? "—"} → Beneficiary: {relatedTx.beneficiaryCountry ?? "—"}</p>
+                                  )}
+                                  {(relatedTx.sourceCurrency || relatedTx.targetCurrency) && (
+                                    <p className="text-sm">Currency: {relatedTx.sourceCurrency ?? relatedTx.currency} → {relatedTx.targetCurrency ?? relatedTx.currency}</p>
+                                  )}
+                                  {relatedTx.fxRate && <p className="text-sm">FX rate: {relatedTx.fxRate}{relatedTx.fxRateDate ? ` (${relatedTx.fxRateDate})` : ""}</p>}
+                                  {relatedTx.sanctionsResult && <p className="text-xs text-muted-foreground">Sanctions: {relatedTx.sanctionsResult}{relatedTx.sanctionsCheckedAt ? ` · ${relatedTx.sanctionsCheckedAt}` : ""}</p>}
+                                </div>
+                              )}
                               {relatedTx.paymentDetails && Object.keys(relatedTx.paymentDetails).length > 0 && (
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Payment details</Label>

@@ -66,7 +66,7 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Mineral } from "./minerals/types";
 import { format } from "date-fns";
-import { useDashboardStore, getRegistryUserName } from "../../store/dashboardStore";
+import { useDashboardStore, getRegistryUserName, getOrderIsInternational } from "../../store/dashboardStore";
 import type { Order } from "../../store/dashboardStore";
 
 function getOrderStatusColor(status: string) {
@@ -108,6 +108,7 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
   const [originFilter, setOriginFilter] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const [priceRange, setPriceRange] = useState<{ min: string, max: string }>({ min: "", max: "" });
+  const [orderScopeFilter, setOrderScopeFilter] = useState<"all" | "domestic" | "international">("all");
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -183,12 +184,15 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
 
   const filteredBuyOrders = buyOrders.filter((o) => {
     const term = orderSearchTerm.toLowerCase().trim();
-    if (!term) return true;
-    return (
-      o.id.toLowerCase().includes(term) ||
-      o.mineral.toLowerCase().includes(term) ||
-      getRegistryUserName(state.registryUsers, o.userId).toLowerCase().includes(term)
-    );
+    if (term) {
+      const match = o.id.toLowerCase().includes(term) ||
+        o.mineral.toLowerCase().includes(term) ||
+        getRegistryUserName(state.registryUsers, o.userId).toLowerCase().includes(term);
+      if (!match) return false;
+    }
+    if (orderScopeFilter === "domestic") return !getOrderIsInternational(o, state.registryUsers);
+    if (orderScopeFilter === "international") return getOrderIsInternational(o, state.registryUsers);
+    return true;
   });
 
   return (
@@ -647,6 +651,16 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
                     onChange={(e) => setOrderSearchTerm(e.target.value)}
                   />
                 </div>
+                <Select value={orderScopeFilter} onValueChange={(v) => setOrderScopeFilter(v as "all" | "domestic" | "international")}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All orders</SelectItem>
+                    <SelectItem value="domestic">Domestic only</SelectItem>
+                    <SelectItem value="international">International only</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardHeader>
             <CardContent>
@@ -655,6 +669,7 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
                   <TableRow>
                     <TableHead>Order ID</TableHead>
                     <TableHead>User</TableHead>
+                    <TableHead>Scope</TableHead>
                     <TableHead>Mineral</TableHead>
                     <TableHead>Mineral type</TableHead>
                     <TableHead>Qty / Unit</TableHead>
@@ -668,12 +683,14 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
                 <TableBody>
                   {filteredBuyOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
                         No buy orders from users.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredBuyOrders.map((order) => (
+                    filteredBuyOrders.map((order) => {
+                      const isIntl = getOrderIsInternational(order, state.registryUsers);
+                      return (
                       <TableRow key={order.id}>
                         <TableCell className="font-mono text-xs font-medium">{order.id}</TableCell>
                         <TableCell>
@@ -683,6 +700,11 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
                               <span className="text-xs text-muted-foreground">{order.userId}</span>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={isIntl ? "bg-violet-50 text-violet-700 dark:bg-violet-900/20 border-violet-200 text-xs" : "bg-slate-50 text-slate-600 dark:bg-slate-800 text-xs"}>
+                            {isIntl ? "International" : "Domestic"}
+                          </Badge>
                         </TableCell>
                         <TableCell className="font-medium text-sm">{order.mineral}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{order.mineralForm ?? "—"}</TableCell>
@@ -710,7 +732,8 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))
+                    );
+                    })
                   )}
                 </TableBody>
               </Table>

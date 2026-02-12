@@ -92,9 +92,11 @@ const ESCALATIONS = [
 
 export interface DisputesResolutionProps {
   initialOrderId?: string;
+  /** Open full order detail page (Buyer/Seller management). */
+  onOpenOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
 }
 
-export function DisputesResolution({ initialOrderId }: DisputesResolutionProps = {}) {
+export function DisputesResolution({ initialOrderId, onOpenOrderDetail }: DisputesResolutionProps = {}) {
   const { state, dispatch } = useDashboardStore();
   const allOrders = useAllOrders();
 
@@ -389,7 +391,16 @@ export function DisputesResolution({ initialOrderId }: DisputesResolutionProps =
                               <Badge className="bg-emerald-100 text-emerald-700 border-none text-[10px]">Verified</Badge>
                             </div>
                             <p className="text-xs text-emerald-600/80 mb-3">Total Value: $45,000.00</p>
-                            <Button size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs">View Original Order</Button>
+                            {onOpenOrderDetail && (() => {
+                              const rawOrderId = selectedDispute.orderId.replace(/^#/, "");
+                              const order = allOrders.find((o) => o.id === rawOrderId);
+                              if (!order) return null;
+                              return (
+                                <Button size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs" onClick={() => onOpenOrderDetail(order.id, order.type === "Buy" ? "buy" : "sell")}>
+                                  Open order detail
+                                </Button>
+                              );
+                            })()}
                           </div>
                         </div>
                       </CardContent>

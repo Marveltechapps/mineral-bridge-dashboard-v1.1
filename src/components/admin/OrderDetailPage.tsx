@@ -24,6 +24,7 @@ import {
   HelpCircle,
   Truck,
   ExternalLink,
+  Globe,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -51,7 +52,7 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { useDashboardStore, getRegistryUserName, getLogisticsDetailsForOrder } from "../../store/dashboardStore";
+import { useDashboardStore, getRegistryUserName, getLogisticsDetailsForOrder, getOrderIsInternational } from "../../store/dashboardStore";
 import type { Order, OrderFlowStepData, OrderDeliveryLocation, SentToUser } from "../../store/dashboardStore";
 import { toast } from "sonner";
 
@@ -440,6 +441,22 @@ export function OrderDetailPage({
                 </div>
               </CardContent>
             </Card>
+            {getOrderIsInternational(order, state.registryUsers) && (
+              <Card className="border-none shadow-sm border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-900/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-violet-600" />
+                    International order
+                  </CardTitle>
+                  <CardDescription>Cross-border: buyer and facility/seller in different countries. Settlement may involve FX or international payment channel.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <p><span className="text-muted-foreground">Buyer country:</span> <span className="font-medium">{order.buyerCountry ?? state.registryUsers.find((u) => u.id === order.userId)?.country ?? "—"}</span></p>
+                  <p><span className="text-muted-foreground">Facility / seller country:</span> <span className="font-medium">{order.sellerCountry ?? order.facility?.country ?? "—"}</span></p>
+                  <p><span className="text-muted-foreground">Order currency:</span> <span className="font-medium">{order.currency}</span></p>
+                </CardContent>
+              </Card>
+            )}
             <Card className="border-none shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -983,7 +1000,7 @@ export function OrderDetailPage({
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Method</Label>
-                        <p className="font-medium">{relatedTx.method}</p>
+                        <p className="font-medium">{relatedTx.method}{relatedTx.paymentChannel ? ` · ${relatedTx.paymentChannel}` : ""}</p>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Date &amp; time</Label>
@@ -996,6 +1013,19 @@ export function OrderDetailPage({
                         <p className="text-sm text-muted-foreground">{relatedTx.settlementNote}</p>
                       </div>
                     </div>
+                    {(relatedTx.isInternational || relatedTx.payerCountry || relatedTx.beneficiaryCountry || relatedTx.sourceCurrency || relatedTx.fxRate) && (
+                      <div className="p-3 rounded-md border border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-900/20 space-y-2">
+                        <Label className="text-xs font-medium text-violet-700 dark:text-violet-300">International settlement</Label>
+                        {(relatedTx.payerCountry || relatedTx.beneficiaryCountry) && (
+                          <p className="text-sm">Payer: {relatedTx.payerCountry ?? "—"} → Beneficiary: {relatedTx.beneficiaryCountry ?? "—"}</p>
+                        )}
+                        {(relatedTx.sourceCurrency || relatedTx.targetCurrency) && (
+                          <p className="text-sm">Currency: {relatedTx.sourceCurrency ?? relatedTx.currency} → {relatedTx.targetCurrency ?? relatedTx.currency}</p>
+                        )}
+                        {relatedTx.fxRate && <p className="text-sm">FX rate: {relatedTx.fxRate}{relatedTx.fxRateDate ? ` (${relatedTx.fxRateDate})` : ""}</p>}
+                        {relatedTx.sanctionsResult && <p className="text-xs text-muted-foreground">Sanctions: {relatedTx.sanctionsResult}{relatedTx.sanctionsCheckedAt ? ` · ${relatedTx.sanctionsCheckedAt}` : ""}</p>}
+                      </div>
+                    )}
                     {relatedTx.paymentDetails &&
                       Object.keys(relatedTx.paymentDetails).length > 0 && (
                         <div>
