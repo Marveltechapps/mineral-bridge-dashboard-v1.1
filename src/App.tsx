@@ -25,6 +25,7 @@ import { SellSubmissionDetailPage } from "./components/admin/SellSubmissionDetai
 import { InsuranceManagement } from "./components/admin/InsuranceManagement";
 import { AdminSettings } from "./components/admin/AdminSettings";
 import { Notifications } from "./components/dashboard/Notifications";
+import { GlobalSearchResults } from "./components/dashboard/GlobalSearchResults";
 import { Toaster } from "./components/ui/sonner";
 
 type AuthView = "login" | "forgotPassword" | "requestAccess";
@@ -39,6 +40,7 @@ export default function App() {
   const [orderDetail, setOrderDetail] = useState<OrderDetailParams>(null);
   const [viewParams, setViewParams] = useState<ViewParams>({});
   const [authView, setAuthView] = useState<AuthView>("login");
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
 
   const navigateTo = useCallback((view: string, params?: ViewParams) => {
     setCurrentView(view);
@@ -232,12 +234,22 @@ export default function App() {
               setOrderDetail({ orderId, type: orderType });
               setCurrentView(orderType === "sell" ? "sell-order-detail" : "buy-order-detail");
             }}
+            onNavigateToEnquiries={(userId) => navigateTo("enquiries", userId ? { selectedUserId: userId } : {})}
+            onNavigateToFinance={() => setCurrentView("finance")}
+            onNavigateToLogistics={(orderId) => navigateTo("logistics", orderId ? { selectedOrderId: orderId } : {})}
           />
         );
       case "enquiries":
         return <EnquirySupportManagement initialUserId={viewParams.selectedUserId} />;
       case "finance":
-        return <FinancialReporting />;
+        return (
+          <FinancialReporting
+            onOpenOrderDetail={(orderId, type) => {
+              setOrderDetail({ orderId, type });
+              setCurrentView(type === "sell" ? "sell-order-detail" : "buy-order-detail");
+            }}
+          />
+        );
       case "content":
         return <ContentMarketing />;
       case "analytics":
@@ -254,6 +266,19 @@ export default function App() {
         return <AdminSettings />;
       case "notifications":
         return <Notifications />;
+      case "search":
+        return (
+          <GlobalSearchResults
+            query={globalSearchQuery}
+            onViewChange={setCurrentView}
+            onOpenOrder={(orderId, type) => {
+              setOrderDetail({ orderId, type });
+              setCurrentView(type === "sell" ? "sell-order-detail" : "buy-order-detail");
+            }}
+            onOpenMineralDetail={(mineralId) => navigateTo("mineral-detail", { selectedMineralId: mineralId })}
+            onOpenUser={(userId) => navigateTo("users", { selectedUserId: userId })}
+          />
+        );
       case "dashboard":
       default:
         return (
@@ -276,6 +301,11 @@ export default function App() {
         currentView={currentView}
         onViewChange={setCurrentView}
         onLogout={handleLogout}
+        globalSearchQuery={globalSearchQuery}
+        onGlobalSearch={(query) => {
+          setGlobalSearchQuery(query);
+          setCurrentView("search");
+        }}
       >
         {renderCurrentView()}
       </DashboardLayout>

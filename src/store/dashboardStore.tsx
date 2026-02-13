@@ -163,6 +163,26 @@ export interface Order {
   buyerCountry?: string;
   /** Seller/facility country; used for international classification. */
   sellerCountry?: string;
+  /** Letter of credit reference (Transactions / Sell flow). */
+  lcNumber?: string;
+  /** Assigned 3rd party testing lab (e.g. SGS Mumbai). */
+  testingLab?: string;
+  /** Short testing result summary (e.g. "Purity: 98.2% | Weight: 502kg"). */
+  testingResultSummary?: string;
+  /** International: Incoterms (FOB, CIF, DAP, EXW, etc.). */
+  incoterms?: string;
+  /** International: Payment terms (T/T 30/70, D/P, D/A, CAD). */
+  paymentTerms?: string;
+  /** International: SWIFT/BIC of issuing bank. */
+  swift?: string;
+  /** International: Export license reference (e.g. MB-EXP-GHA-5489). */
+  exportLicense?: string;
+  /** International: Correspondent/advising bank name or SWIFT. */
+  correspondentBank?: string;
+  /** International: Escrow status (Reserved, Pending Release, Released). */
+  escrowStatus?: "Reserved" | "Pending Release" | "Released";
+  /** 6-step flow: 1–3 for Buy (QR, Call, Reserve), 1–3 for Sell (Testing, LC, Release). */
+  currentStep?: number;
 }
 
 export interface Transaction {
@@ -409,6 +429,7 @@ const initialBuyOrders: Order[] = [
     ],
     buyerCountry: "Ghana",
     sellerCountry: "Ghana",
+    currentStep: 1,
   },
   {
     id: "B-ORD-5512",
@@ -479,6 +500,7 @@ const initialBuyOrders: Order[] = [
     ],
     buyerCountry: "Switzerland",
     sellerCountry: "Switzerland",
+    currentStep: 2,
   },
   {
     id: "B-ORD-5520",
@@ -569,6 +591,7 @@ const initialSellOrders: Order[] = [
     ],
     buyerCountry: "Ghana",
     sellerCountry: "Ghana",
+    currentStep: 1,
   },
 ];
 
@@ -685,6 +708,9 @@ export type DashboardAction =
   | { type: "SET_SELL_ORDERS"; payload: Order[] }
   | { type: "ADD_ORDER"; payload: Order }
   | { type: "UPDATE_ORDER"; payload: Order }
+  | { type: "SET_ORDER_LC"; payload: { orderId: string; type: "Buy" | "Sell"; lcNumber: string } }
+  | { type: "SET_ORDER_TESTING"; payload: { orderId: string; type: "Buy" | "Sell"; testingLab?: string; testingResultSummary?: string } }
+  | { type: "SET_ORDER_CURRENT_STEP"; payload: { orderId: string; type: "Buy" | "Sell"; step: number } }
   | { type: "SET_TRANSACTIONS"; payload: Transaction[] }
   | { type: "ADD_TRANSACTION"; payload: Transaction }
   | { type: "UPDATE_TRANSACTION"; payload: Transaction }
@@ -769,6 +795,25 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
         return { ...state, buyOrders: state.buyOrders.map((x) => (x.id === o.id ? o : x)) };
       }
       return { ...state, sellOrders: state.sellOrders.map((x) => (x.id === o.id ? o : x)) };
+    }
+    case "SET_ORDER_LC": {
+      const { orderId, type, lcNumber } = action.payload;
+      const upd = (order: Order) => (order.id === orderId ? { ...order, lcNumber } : order);
+      if (type === "Buy") return { ...state, buyOrders: state.buyOrders.map(upd) };
+      return { ...state, sellOrders: state.sellOrders.map(upd) };
+    }
+    case "SET_ORDER_TESTING": {
+      const { orderId, type, testingLab, testingResultSummary } = action.payload;
+      const upd = (order: Order) =>
+        order.id === orderId ? { ...order, ...(testingLab !== undefined && { testingLab }), ...(testingResultSummary !== undefined && { testingResultSummary }) } : order;
+      if (type === "Buy") return { ...state, buyOrders: state.buyOrders.map(upd) };
+      return { ...state, sellOrders: state.sellOrders.map(upd) };
+    }
+    case "SET_ORDER_CURRENT_STEP": {
+      const { orderId, type, step } = action.payload;
+      const upd = (order: Order) => (order.id === orderId ? { ...order, currentStep: step } : order);
+      if (type === "Buy") return { ...state, buyOrders: state.buyOrders.map(upd) };
+      return { ...state, sellOrders: state.sellOrders.map(upd) };
     }
     case "SET_TRANSACTIONS":
       return { ...state, transactions: action.payload };

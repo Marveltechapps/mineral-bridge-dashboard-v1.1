@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Sidebar, 
   SidebarContent, 
@@ -78,10 +78,25 @@ interface DashboardLayoutProps {
   currentView?: string;
   onViewChange?: (view: string) => void;
   onLogout?: () => void;
+  /** Optional: current global search query (e.g. when on search results view). */
+  globalSearchQuery?: string;
+  /** Called when user submits the header search (Enter or button). */
+  onGlobalSearch?: (query: string) => void;
 }
 
-export function DashboardLayout({ children, currentView = "dashboard", onViewChange, onLogout }: DashboardLayoutProps) {
+export function DashboardLayout({ children, currentView = "dashboard", onViewChange, onLogout, globalSearchQuery, onGlobalSearch }: DashboardLayoutProps) {
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [searchInput, setSearchInput] = useState(globalSearchQuery ?? "");
+
+  useEffect(() => {
+    if (globalSearchQuery !== undefined) setSearchInput(globalSearchQuery);
+  }, [globalSearchQuery]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchInput.trim();
+    if (q) onGlobalSearch?.(q);
+  };
   
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
@@ -197,14 +212,17 @@ export function DashboardLayout({ children, currentView = "dashboard", onViewCha
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
-              <div className="relative flex-1 max-w-md mx-4">
+              <form className="relative flex-1 max-w-md mx-4" onSubmit={handleSearchSubmit}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input
                   type="search"
                   placeholder="Search orders, users, minerals..."
                   className="pl-9 h-9 rounded-lg bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500/20"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  aria-label="Search orders, users, minerals"
                 />
-              </div>
+              </form>
 
               <div className="ml-auto flex items-center space-x-2">
                 <Button

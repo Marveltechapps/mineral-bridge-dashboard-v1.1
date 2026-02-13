@@ -1,326 +1,199 @@
-import { useMemo, useState } from "react";
-import { 
-  Download, 
-  Calendar,
-  DollarSign,
-  TrendingUp,
-  CreditCard,
-  AlertCircle,
-  FileCheck
-} from "lucide-react";
+import { useMemo } from "react";
+import { Download, Calendar, LayoutGrid, Wallet, FileText, Shield, TrendingUp } from "lucide-react";
 import { Button } from "../ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "../ui/table";
-import { Badge } from "../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { useDashboardStore, getRegistryUserName } from "../../store/dashboardStore";
+import { useDashboardStore } from "../../store/dashboardStore";
+import { TransactionsDashboard } from "./Transactions/TransactionsDashboard";
+import { InternationalEscrow } from "./Financial/InternationalEscrow";
+import { TradeFinanceLC } from "./Financial/TradeFinanceLC";
+import { IncotermsLogistics } from "./Financial/IncotermsLogistics";
+import { ComplianceRegulatory } from "./Financial/ComplianceRegulatory";
+import { MultiCurrencyReports } from "./Financial/MultiCurrencyReports";
+import { RevenueAnalytics } from "./Financial/RevenueAnalytics";
 
-export function FinancialReporting() {
+export function FinancialReporting({
+  onOpenOrderDetail,
+}: {
+  onOpenOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
+}) {
   const { state } = useDashboardStore();
-  const [statusFilter, setStatusFilter] = useState<"all" | "Pending" | "Completed" | "Failed">("all");
-  const [dateRangeFilter, setDateRangeFilter] = useState<"all" | "today" | "week" | "month">("all");
-  const filteredTransactionsForTable = useMemo(() => {
-    let list = state.transactions;
-    if (statusFilter !== "all") list = list.filter((t) => t.status === statusFilter);
-    if (dateRangeFilter !== "all") {
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const weekStart = todayStart - 7 * 24 * 60 * 60 * 1000;
-      const monthStart = todayStart - 30 * 24 * 60 * 60 * 1000;
-      list = list.filter((tx) => {
-        const t = new Date(tx.date).getTime();
-        if (dateRangeFilter === "today") return t >= todayStart && t < todayStart + 24 * 60 * 60 * 1000;
-        if (dateRangeFilter === "week") return t >= weekStart;
-        if (dateRangeFilter === "month") return t >= monthStart;
-        return true;
-      });
-    }
-    return list;
-  }, [state.transactions, statusFilter, dateRangeFilter]);
-  const transactions = useMemo(
-    () =>
-      state.transactions.map((tx) => ({
-        id: tx.id,
-        date: tx.date,
-        description: `${tx.orderType} - ${tx.mineral} (${tx.orderId})`,
-        amount: tx.status === "Completed" ? `+${tx.finalAmount}` : `-${tx.finalAmount}`,
-        type: tx.status === "Completed" ? "Credit" : "Debit",
-        status: tx.status,
-      })),
-    [state.transactions]
-  );
-  const totalRevenue = useMemo(
-    () =>
-      state.transactions
-        .filter((t) => t.status === "Completed")
-        .reduce((s, t) => s + parseFloat(t.finalAmount.replace(/[^0-9.-]/g, "")) || 0, 0),
-    [state.transactions]
-  );
-  const pendingAmount = useMemo(
-    () =>
-      state.transactions
-        .filter((t) => t.status === "Pending")
-        .reduce((s, t) => s + parseFloat(t.finalAmount.replace(/[^0-9.-]/g, "")) || 0, 0),
-    [state.transactions]
-  );
-  const failedCount = state.transactions.filter((t) => t.status === "Failed").length;
+
+  const metrics = useMemo(() => {
+    const allOrders = [...state.buyOrders, ...state.sellOrders];
+    const totalEscrow = allOrders
+      .filter((o) => o.status !== "Cancelled" && o.status !== "Completed" && o.status !== "Order Completed")
+      .reduce((s, o) => s + (parseFloat(String(o.aiEstimatedAmount ?? 0).replace(/[^0-9.-]/g, "")) || 0), 0);
+    const lcCount = allOrders.filter((o) => o.lcNumber).length || 15;
+    const pendingRelease = state.transactions
+      .filter((t) => t.status === "Pending")
+      .reduce((s, t) => s + (parseFloat(t.finalAmount.replace(/[^0-9.-]/g, "")) || 0), 0);
+    const settledYtd = state.transactions
+      .filter((t) => t.status === "Completed")
+      .reduce((s, t) => s + (parseFloat(t.finalAmount.replace(/[^0-9.-]/g, "")) || 0), 0);
+    const platformRevenue = state.transactions
+      .filter((t) => t.status === "Completed")
+      .reduce((s, t) => s + (parseFloat(t.serviceFee?.replace(/[^0-9.-]/g, "") || "0") || 0), 0);
+    const incotermsFob = 62;
+    const complianceOk = 98;
+
+    return {
+      totalEscrow: totalEscrow >= 1e6 ? `$${(totalEscrow / 1e6).toFixed(1)}M` : `$${totalEscrow.toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
+      lcIssued: lcCount,
+      pendingRelease: pendingRelease >= 1e6 ? `$${(pendingRelease / 1e6).toFixed(1)}M` : `$${pendingRelease.toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
+      settledYtd: settledYtd >= 1e6 ? `$${(settledYtd / 1e6).toFixed(1)}M` : `$${settledYtd.toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
+      platformRevenue: platformRevenue >= 1e3 ? `$${(platformRevenue / 1e3).toFixed(0)}K` : `$${platformRevenue.toFixed(0)}`,
+      incotermsFob: incotermsFob + "%",
+      complianceOk: complianceOk + "%",
+    };
+  }, [state.buyOrders, state.sellOrders, state.transactions]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-8">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Financial & Reporting</h1>
-          <p className="text-muted-foreground">Track revenue, settlements, and generate financial reports.</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Financial & Reporting</h1>
+          <p className="text-muted-foreground mt-1">
+            Complete international trade finance: Escrow, LC, Incoterms, SWIFT, Compliance, Multi-currency
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
-            <Calendar className="w-4 h-4" />
-            Oct 2024
-          </Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+        <div className="flex gap-3 flex-wrap">
+          <Select defaultValue="feb2026">
+            <SelectTrigger className="w-[160px]">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Date range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="jan2026">Jan 2026</SelectItem>
+              <SelectItem value="feb2026">Feb 2026</SelectItem>
+              <SelectItem value="ytd">YTD 2026</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select defaultValue="USD">
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Currency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="USD">USD</SelectItem>
+              <SelectItem value="GHS">GHS</SelectItem>
+              <SelectItem value="CHF">CHF</SelectItem>
+              <SelectItem value="EUR">EUR</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button className="bg-[#A855F7] hover:bg-purple-600 text-white gap-2">
             <Download className="w-4 h-4" />
-            Export CSV
+            Export All (CSV/PDF)
           </Button>
         </div>
       </div>
 
-      {/* Financial Overview Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-none shadow-sm bg-white dark:bg-slate-900">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${totalRevenue >= 1e6 ? (totalRevenue / 1e6).toFixed(2) + "M" : totalRevenue.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              From settled transactions
-            </p>
+      {/* 6 Global metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-6">
+        <Card className="border-slate-200 dark:border-slate-700">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Total Escrow</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">{metrics.totalEscrow}</p>
           </CardContent>
         </Card>
-        <Card className="border-none shadow-sm bg-white dark:bg-slate-900">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Settlements</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-600">
-              ${pendingAmount >= 1e6 ? (pendingAmount / 1e6).toFixed(2) + "M" : pendingAmount.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {state.transactions.filter((t) => t.status === "Pending").length} transaction(s) pending
-            </p>
+        <Card className="border-slate-200 dark:border-slate-700">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">LC Issued</p>
+            <p className="text-2xl font-bold text-[#A855F7]">{metrics.lcIssued}</p>
           </CardContent>
         </Card>
-        <Card className="border-none shadow-sm bg-white dark:bg-slate-900">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Registry Users</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{state.registryUsers.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Linked from User Management
-            </p>
+        <Card className="border-slate-200 dark:border-slate-700">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Pending Release</p>
+            <p className="text-2xl font-bold text-amber-600">{metrics.pendingRelease}</p>
           </CardContent>
         </Card>
-        <Card className="border-none shadow-sm bg-white dark:bg-slate-900">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Failed Payments</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{failedCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Requires attention
-            </p>
+        <Card className="border-slate-200 dark:border-slate-700">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Settled YTD</p>
+            <p className="text-2xl font-bold text-emerald-600">{metrics.settledYtd}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 dark:border-slate-700">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Incoterms FOB</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">{metrics.incotermsFob}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 dark:border-slate-700">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Compliance OK</p>
+            <p className="text-2xl font-bold text-emerald-600">{metrics.complianceOk}</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-7">
-        <Card className="col-span-4 border-none shadow-sm bg-white dark:bg-slate-900">
-          <CardHeader>
-            <CardTitle>Revenue Overview</CardTitle>
-            <CardDescription>Monthly revenue breakdown for the current year.</CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <div className="h-[300px] flex items-end justify-between gap-2 px-4">
-              {[35, 45, 30, 60, 55, 70, 65, 80, 75, 90, 85, 95].map((height, i) => (
-                <div key={i} className="flex flex-col items-center gap-2 group w-full">
-                  <div 
-                    className="w-full bg-emerald-500/20 group-hover:bg-emerald-500 transition-colors rounded-t-sm" 
-                    style={{ height: `${height}%` }}
-                  />
-                  <span className="text-[10px] text-muted-foreground uppercase">{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i]}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {/* 7 Tabs */}
+      <Tabs defaultValue="transactions" className="w-full">
+        <TabsList className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex-wrap h-auto gap-1 p-1">
+          <TabsTrigger value="transactions" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white">
+            <LayoutGrid className="h-4 w-4" />
+            Transactions
+          </TabsTrigger>
+          <TabsTrigger value="escrow" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white">
+            <Wallet className="h-4 w-4" />
+            Escrow (Global)
+          </TabsTrigger>
+          <TabsTrigger value="lc" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white">
+            <FileText className="h-4 w-4" />
+            Trade Finance LC
+          </TabsTrigger>
+          <TabsTrigger value="incoterms" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white">
+            Incoterms & Logistics
+          </TabsTrigger>
+          <TabsTrigger value="compliance" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white">
+            <Shield className="h-4 w-4" />
+            Compliance
+          </TabsTrigger>
+          <TabsTrigger value="currency" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white">
+            Multi-Currency
+          </TabsTrigger>
+          <TabsTrigger value="revenue" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white">
+            <TrendingUp className="h-4 w-4" />
+            Revenue
+          </TabsTrigger>
+        </TabsList>
 
-        <Card className="col-span-3 border-none shadow-sm bg-white dark:bg-slate-900">
-          <CardHeader>
-            <CardTitle>Recent Transactions</CardTitle>
-            <CardDescription>Latest financial movements.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {transactions.map((trx) => {
-                const tx = state.transactions.find((t) => t.id === trx.id);
-                return (
-                  <div key={trx.id} className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium leading-none">{trx.description}</p>
-                      <p className="text-xs text-muted-foreground">{trx.date}{tx?.currency ? ` · ${tx.currency}` : ""}{tx?.serviceFee ? ` · Fee ${tx.serviceFee}` : ""}</p>
-                    </div>
-                    <div className="text-right">
-                       <p className={`text-sm font-medium ${trx.type === 'Credit' ? 'text-emerald-600' : 'text-slate-900 dark:text-slate-100'}`}>
-                        {trx.amount}
-                      </p>
-                      <span className="text-[10px] text-muted-foreground">{trx.status}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <Button variant="outline" className="w-full mt-6">View All Transactions</Button>
-          </CardContent>
-        </Card>
-      </div>
+        <TabsContent value="transactions" className="mt-4">
+          <TransactionsDashboard onOpenOrderDetail={onOpenOrderDetail} />
+        </TabsContent>
 
-      <Card className="border-none shadow-sm bg-white dark:bg-slate-900">
-        <CardHeader>
-          <CardTitle>Settlement Queue</CardTitle>
-          <CardDescription>All payment and settlement records. Filter by status and date range.</CardDescription>
-          <div className="flex flex-wrap gap-2 pt-2">
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "all" | "Pending" | "Completed" | "Failed")}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All status</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-                <SelectItem value="Failed">Failed</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={dateRangeFilter} onValueChange={(v) => setDateRangeFilter(v as "all" | "today" | "week" | "month")}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Date range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All time</SelectItem>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="week">Last 7 days</SelectItem>
-                <SelectItem value="month">Last 30 days</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Transaction ID</TableHead>
-                  <TableHead>User (Registry)</TableHead>
-                  <TableHead>Order Ref</TableHead>
-                  <TableHead>Final amount</TableHead>
-                  <TableHead>Fee</TableHead>
-                  <TableHead>Net</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Initiated</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTransactionsForTable.map((tx) => {
-                  const order = [...state.buyOrders, ...state.sellOrders].find((o) => o.id === tx.orderId);
-                  return (
-                    <TableRow key={tx.id}>
-                      <TableCell className="font-medium">{tx.id}</TableCell>
-                      <TableCell className="text-sm text-slate-700 dark:text-slate-300">{getRegistryUserName(state.registryUsers, order?.userId)}</TableCell>
-                      <TableCell className="text-sm">{tx.orderId}</TableCell>
-                      <TableCell className="font-medium">{tx.finalAmount}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{tx.serviceFee ?? "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{tx.netAmount ?? "—"}</TableCell>
-                      <TableCell className="text-sm">{tx.currency ?? "—"}</TableCell>
-                      <TableCell className="text-sm">{tx.method ?? "—"}{tx.paymentChannel ? ` · ${tx.paymentChannel}` : ""}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{tx.date} {tx.time}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={tx.status === "Completed" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : tx.status === "Failed" ? "bg-red-50 text-red-700 border-red-200" : "text-amber-600 bg-amber-50 border-amber-200"}>
-                          {tx.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right"><Button variant="ghost" size="sm">Details</Button></TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+        <TabsContent value="escrow" className="mt-4">
+          <InternationalEscrow
+            onOpenOrderDetail={onOpenOrderDetail}
+            onReleaseEscrow={(orderId) => {
+              const tx = state.transactions.find((t) => t.orderId === orderId);
+              if (tx) onOpenOrderDetail?.(orderId, tx.orderType === "Buy" ? "buy" : "sell");
+            }}
+          />
+        </TabsContent>
 
-      <Card className="border-none shadow-sm bg-white dark:bg-slate-900">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileCheck className="h-5 w-5 text-emerald-600" />
-            Reconciliation
-          </CardTitle>
-          <CardDescription>Settlement batches (payouts). Match bank movements to transaction batches.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Payout ID</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Label</TableHead>
-                  <TableHead>Total amount</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead># Transactions</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(state.payouts ?? []).map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium text-emerald-600">{p.id}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{p.date}</TableCell>
-                    <TableCell className="text-sm">{p.label}</TableCell>
-                    <TableCell className="font-medium">${p.totalAmount}</TableCell>
-                    <TableCell className="text-sm">{p.currency}</TableCell>
-                    <TableCell>{p.transactionCount}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={p.status === "Reconciled" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : p.status === "Settled" ? "bg-slate-50 text-slate-700 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"}>
-                        {p.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          {(!state.payouts || state.payouts.length === 0) && (
-            <p className="text-sm text-muted-foreground py-6 text-center">No settlement batches yet. Payouts appear here when transactions are grouped for reconciliation.</p>
-          )}
-        </CardContent>
-      </Card>
+        <TabsContent value="lc" className="mt-4">
+          <TradeFinanceLC onOpenOrderDetail={onOpenOrderDetail} />
+        </TabsContent>
+
+        <TabsContent value="incoterms" className="mt-4">
+          <IncotermsLogistics onOpenOrderDetail={onOpenOrderDetail} />
+        </TabsContent>
+
+        <TabsContent value="compliance" className="mt-4">
+          <ComplianceRegulatory onOpenOrderDetail={onOpenOrderDetail} />
+        </TabsContent>
+
+        <TabsContent value="currency" className="mt-4">
+          <MultiCurrencyReports />
+        </TabsContent>
+
+        <TabsContent value="revenue" className="mt-4">
+          <RevenueAnalytics onOpenOrderDetail={onOpenOrderDetail} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

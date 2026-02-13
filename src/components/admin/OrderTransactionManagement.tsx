@@ -61,6 +61,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useAllOrders, useDashboardStore, getRegistryUserName, getOrderIsInternational, getTransactionIsInternational } from "../../store/dashboardStore";
 import type { Order, Transaction } from "../../store/dashboardStore";
 import { toast } from "sonner";
+import { TransactionStepper } from "./orders/TransactionStepper";
+import { Stepper6 } from "./orders/Stepper6";
+import { OrderTable } from "./orders/OrderTable";
+import { SettlementsTab } from "./orders/SettlementsTab";
 
 const ORDER_STATUSES = ["Order Submitted", "Awaiting Team Contact", "Sample Test Required", "Price Confirmed", "Payment Initiated", "Completed", "Cancelled"] as const;
 /** Buy orders: no "Sample Test Required" — not a required status in buyer flow */
@@ -84,9 +88,21 @@ export interface OrderTransactionManagementProps {
   initialTransactionId?: string;
   /** Open full order detail page (Buyer/Seller management). */
   onOpenFullOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
+  /** Navigate to Enquiry & Support (e.g. after Call Buyer). */
+  onNavigateToEnquiries?: (userId?: string) => void;
+  /** Navigate to Financial & Reporting (e.g. Reserve Escrow). */
+  onNavigateToFinance?: () => void;
+  /** Navigate to Logistics (e.g. Track). */
+  onNavigateToLogistics?: (orderId?: string) => void;
 }
 
-export function OrderTransactionManagement({ initialTransactionId, onOpenFullOrderDetail }: OrderTransactionManagementProps = {}) {
+export function OrderTransactionManagement({
+  initialTransactionId,
+  onOpenFullOrderDetail,
+  onNavigateToEnquiries,
+  onNavigateToFinance,
+  onNavigateToLogistics,
+}: OrderTransactionManagementProps = {}) {
   const { state, dispatch } = useDashboardStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [orderForView, setOrderForView] = useState<Order | null>(null);
@@ -94,6 +110,7 @@ export function OrderTransactionManagement({ initialTransactionId, onOpenFullOrd
   const [orderForCancel, setOrderForCancel] = useState<Order | null>(null);
   const [newStatus, setNewStatus] = useState<string>("");
   const [mainTab, setMainTab] = useState<"orders" | "settlements">("orders");
+  const [activeStep6, setActiveStep6] = useState(1);
   const [internationalFilter, setInternationalFilter] = useState<"all" | "domestic" | "international">("all");
   const [statusFilterSettlement, setStatusFilterSettlement] = useState<"all" | "Pending" | "Completed" | "Failed">("all");
   const [dateRangeFilter, setDateRangeFilter] = useState<"all" | "today" | "week" | "month">("all");
@@ -163,242 +180,110 @@ export function OrderTransactionManagement({ initialTransactionId, onOpenFullOrd
   const completedCount = transactions.filter((t) => t.status === "Completed").length;
   const failedCount = transactions.filter((t) => t.status === "Failed").length;
 
+  const activeOrdersCount = useMemo(
+    () => allOrders.filter((o) => o.status !== "Completed" && o.status !== "Order Completed" && o.status !== "Cancelled").length,
+    [allOrders]
+  );
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Orders & Settlements</h1>
-          <p className="text-muted-foreground">Unified order pipeline and payment settlements for Mineral Bridge. Orders are managed in Buy/Sell Management; here you see all orders and their settlement (payment) status.</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Orders & Settlements</h1>
+          <p className="text-muted-foreground mt-1">
+            Unified order pipeline and payment settlements. Orders managed in Buy/Sell Management.
+          </p>
         </div>
-        <div className="flex gap-2">
-           <Button variant="outline" className="gap-2">
+        <div className="flex gap-3">
+          <Button variant="outline" className="gap-2">
             <Calendar className="w-4 h-4" />
             Date Range
           </Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+          <Button className="bg-[#A855F7] hover:bg-purple-600 text-white gap-2">
             <Download className="w-4 h-4" />
             Export Report
           </Button>
         </div>
       </div>
 
+      {/* Metrics - exact 4 cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="border-slate-200 dark:border-slate-700">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Total volume (settled)</p>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+              ${totalSettled >= 1e6 ? (totalSettled / 1e6).toFixed(2) + "M" : totalSettled.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+            </h3>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 dark:border-slate-700">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Pending settlements</p>
+            <h3 className="text-2xl font-bold text-amber-600">{pendingCount}</h3>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 dark:border-slate-700">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Active orders</p>
+            <h3 className="text-2xl font-bold text-blue-600">{activeOrdersCount}</h3>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 dark:border-slate-700">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Disputed orders</p>
+            <h3 className="text-2xl font-bold text-red-600">{state.disputes.length}</h3>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 6-step pipeline (visual) */}
+      <Stepper6 activeStep={activeStep6} onStepChange={setActiveStep6} />
+      <TransactionStepper />
+
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "orders" | "settlements")} className="w-full">
-        <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg">
-          <TabsTrigger value="orders" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
+        <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg border border-slate-200 dark:border-slate-700">
+          <TabsTrigger value="orders" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-[#A855F7] dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-purple-400 gap-2">
             <Gem className="h-4 w-4" />
-            Orders (all buy & sell)
+            All orders
           </TabsTrigger>
-          <TabsTrigger value="settlements" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
+          <TabsTrigger value="settlements" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-[#A855F7] dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-purple-400 gap-2">
             <CreditCard className="h-4 w-4" />
             Settlements (payments)
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="orders" className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="border-none shadow-sm">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium text-muted-foreground">Total volume (settled)</p>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
-                  ${totalSettled >= 1e6 ? (totalSettled / 1e6).toFixed(2) + "M" : totalSettled.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                </h3>
-              </CardContent>
-            </Card>
-            <Card className="border-none shadow-sm">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium text-muted-foreground">Pending settlements</p>
-                <h3 className="text-2xl font-bold text-amber-600">{pendingCount}</h3>
-              </CardContent>
-            </Card>
-            <Card className="border-none shadow-sm">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium text-muted-foreground">Active orders</p>
-                <h3 className="text-2xl font-bold text-blue-600">{allOrders.length}</h3>
-              </CardContent>
-            </Card>
-            <Card className="border-none shadow-sm">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium text-muted-foreground">Disputed orders</p>
-                <h3 className="text-2xl font-bold text-red-600">{state.disputes.length}</h3>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className="border-none shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">All orders</CardTitle>
-              <CardDescription className="text-muted-foreground">Unified list of buy and sell orders. Use Buy Management or Sell Management to focus on one side.</CardDescription>
-              <div className="flex flex-col sm:flex-row justify-between gap-4 pt-2">
-                <div className="relative w-full sm:w-96">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by Order ID, mineral, or facility..."
-                    className="pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Select value={internationalFilter} onValueChange={(v) => setInternationalFilter(v as "all" | "domestic" | "international")}>
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Scope" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All orders</SelectItem>
-                      <SelectItem value="domestic">Domestic only</SelectItem>
-                      <SelectItem value="international">International only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" className="gap-2">
-                    <Filter className="w-4 h-4" />
-                    Status
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order ID</TableHead>
-                <TableHead>User (Registry)</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Scope</TableHead>
-                <TableHead>Mineral & Quantity</TableHead>
-                <TableHead>Facility</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orders.map((order) => {
-                const isIntl = getOrderIsInternational(order, state.registryUsers);
-                return (
-                <TableRow key={order.id}>
-                  <TableCell className="font-medium text-emerald-600">{order.id}</TableCell>
-                  <TableCell className="text-sm text-slate-700 dark:text-slate-300">
-                    {getRegistryUserName(state.registryUsers, order.userId)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={order.type === "Buy" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20" : "bg-amber-50 text-amber-700 dark:bg-amber-900/20"}>
-                      {order.type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={isIntl ? "bg-violet-50 text-violet-700 dark:bg-violet-900/20 border-violet-200" : "bg-slate-50 text-slate-600 dark:bg-slate-800"}>
-                      {isIntl ? "International" : "Domestic"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col text-sm">
-                      <span className="font-medium text-slate-900 dark:text-slate-100">{order.mineral}</span>
-                      <span className="text-xs text-muted-foreground">{order.qty} {order.unit}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{order.facility?.name ?? "—"}</TableCell>
-                  <TableCell className="font-medium">{order.aiEstimatedAmount}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={`
-                      ${order.status === "Completed" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800" : ""}
-                      ${order.status === "Awaiting Team Contact" || order.status === "Sample Test Required" ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800" : ""}
-                      ${order.status === "Cancelled" ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:border-slate-700" : ""}
-                    `}>
-                      {order.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{order.createdAt}</TableCell>
-                <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 gap-1.5 px-3"
-                        onClick={(e) => { e.stopPropagation(); setOrderForView(order); }}
-                      >
-                        <Eye className="h-4 w-4" />
-                        Details
-                      </Button>
-                      {onOpenFullOrderDetail && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1.5 px-3 text-emerald-600 border-emerald-200"
-                          onClick={(e) => { e.stopPropagation(); onOpenFullOrderDetail(order.id, order.type === "Buy" ? "buy" : "sell"); }}
-                        >
-                          Open in Order detail
-                        </Button>
-                      )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setOrderForView(order); }}>
-                            <Eye className="mr-2 h-4 w-4" />
-                            View full details
-                          </DropdownMenuItem>
-                          {onOpenFullOrderDetail && (
-                            <DropdownMenuItem onClick={() => onOpenFullOrderDetail(order.id, order.type === "Buy" ? "buy" : "sell")}>
-                              Open in Order detail page
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => { setOrderForStatus(order); setNewStatus(order.status); }}>
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Update Status
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600" onClick={() => setOrderForCancel(order)} disabled={order.status === "Cancelled"}>
-                            <Ban className="mr-2 h-4 w-4" />
-                            Cancel Order
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        <TabsContent value="orders" className="mt-6">
+          <OrderTable
+            orders={orders}
+            registryUsers={state.registryUsers}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            scopeFilter={internationalFilter}
+            onScopeFilterChange={(v) => setInternationalFilter(v)}
+            onOpenDetails={setOrderForView}
+            onOpenFullOrderDetail={onOpenFullOrderDetail}
+            onCallBuyer={(order) => onNavigateToEnquiries?.(order.userId)}
+            onReserveEscrow={() => onNavigateToFinance?.()}
+            onTrack={(order) => onNavigateToLogistics?.(order.id)}
+            onRelease={(order) => {
+              const tx = state.transactions.find((t) => t.orderId === order.id);
+              if (tx) onNavigateToFinance?.();
+            }}
+            dispatch={dispatch}
+            use6StepFlow
+            onStepComplete={(completedStep) => setActiveStep6(Math.min(completedStep + 1, 6))}
+          />
         </TabsContent>
 
         <TabsContent value="settlements" className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="border-none shadow-sm">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium text-muted-foreground">Total settled</p>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
-                  ${totalSettled >= 1e6 ? (totalSettled / 1e6).toFixed(2) + "M" : totalSettled.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                </h3>
-              </CardContent>
-            </Card>
-            <Card className="border-none shadow-sm">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium text-muted-foreground">Pending</p>
-                <h3 className="text-2xl font-bold text-amber-600">{pendingCount}</h3>
-              </CardContent>
-            </Card>
-            <Card className="border-none shadow-sm">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium text-muted-foreground">Completed</p>
-                <h3 className="text-2xl font-bold text-emerald-600">{completedCount}</h3>
-              </CardContent>
-            </Card>
-            <Card className="border-none shadow-sm">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium text-muted-foreground">Failed</p>
-                <h3 className="text-2xl font-bold text-red-600">{failedCount}</h3>
-              </CardContent>
-            </Card>
-          </div>
-          <Card className="border-none shadow-sm">
+          <SettlementsTab
+            onReleasePayment={(tx) => {
+              dispatch({ type: "UPDATE_TRANSACTION", payload: { ...tx, status: "Completed" } });
+              toast.success("Payment released", { description: tx.id });
+            }}
+            onOpenOrderDetail={onOpenFullOrderDetail}
+          />
+          <Card className="border-slate-200 dark:border-slate-700">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Settlements (payments)</CardTitle>
               <CardDescription className="text-muted-foreground">Payment and settlement records linked to orders. Filter by scope, status, date range, and method.</CardDescription>
