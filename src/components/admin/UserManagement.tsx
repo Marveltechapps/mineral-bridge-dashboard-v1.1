@@ -723,6 +723,35 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                     <UserPlus className="w-4 h-4" /> Manual Registration
                   </Button>
                </div>
+
+               {/* Stat cards - same style as Orders & Settlements */}
+               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                 <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
+                   <CardContent className="p-4">
+                     <p className="text-xs font-medium text-muted-foreground">Total users</p>
+                     <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{state.registryUsers.length}</h3>
+                   </CardContent>
+                 </Card>
+                 <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
+                   <CardContent className="p-4">
+                     <p className="text-xs font-medium text-muted-foreground">Verified</p>
+                     <h3 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{state.registryUsers.filter((u) => u.status === "Verified").length}</h3>
+                   </CardContent>
+                 </Card>
+                 <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
+                   <CardContent className="p-4">
+                     <p className="text-xs font-medium text-muted-foreground">Under review</p>
+                     <h3 className="text-2xl font-bold text-amber-600 dark:text-amber-400">{state.registryUsers.filter((u) => u.status === "Under Review").length}</h3>
+                   </CardContent>
+                 </Card>
+                 <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
+                   <CardContent className="p-4">
+                     <p className="text-xs font-medium text-muted-foreground">Pending access requests</p>
+                     <h3 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{state.accessRequests.filter((r) => r.status === "pending").length}</h3>
+                   </CardContent>
+                 </Card>
+               </div>
+
                {/* Pending access requests: users who filled pre-homepage details and await verification */}
                {state.accessRequests.filter((r) => r.status === "pending").length > 0 && (
                  <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 mt-6 overflow-hidden">

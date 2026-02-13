@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useDashboardStore, getRegistryUserName } from "../../../store/dashboardStore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../ui/card";
 import { Button } from "../../ui/button";
@@ -15,11 +15,23 @@ import { Badge } from "../../ui/badge";
 
 export function RevenueAnalytics({
   onOpenOrderDetail,
+  defaultStatusFilter,
+  onDefaultFilterConsumed,
 }: {
   onOpenOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
+  /** When set (e.g. "Failed"), opens this tab with that filter so user can see failed transactions. */
+  defaultStatusFilter?: "all" | "Pending" | "Completed" | "Failed";
+  /** Called after applying defaultStatusFilter so parent can clear it (e.g. so next visit doesn't force same filter). */
+  onDefaultFilterConsumed?: () => void;
 }) {
   const { state } = useDashboardStore();
-  const [statusFilter, setStatusFilter] = useState<"all" | "Pending" | "Completed" | "Failed">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "Pending" | "Completed" | "Failed">(defaultStatusFilter ?? "all");
+  useEffect(() => {
+    if (defaultStatusFilter != null) {
+      setStatusFilter(defaultStatusFilter);
+      onDefaultFilterConsumed?.();
+    }
+  }, [defaultStatusFilter, onDefaultFilterConsumed]);
 
   const { grossRevenue, platformFees, netMargin } = useMemo(() => {
     const completed = state.transactions.filter((t) => t.status === "Completed");

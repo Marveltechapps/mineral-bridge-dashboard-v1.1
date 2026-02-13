@@ -183,6 +183,20 @@ export interface Order {
   escrowStatus?: "Reserved" | "Pending Release" | "Released";
   /** 6-step flow: 1–3 for Buy (QR, Call, Reserve), 1–3 for Sell (Testing, LC, Release). */
   currentStep?: number;
+  /** Sell flow: when our team contacted the seller (from app buy request). */
+  teamContactedAt?: string;
+  /** Sell flow: negotiation notes. */
+  negotiationNotes?: string;
+  /** Sell flow: place/location sent to testing team (where they go). */
+  testingTeamPlace?: string;
+  /** Sell flow: when testing report was received from team. */
+  testingReportReceivedAt?: string;
+  /** Sell flow: when LC was credited to customer account (after testing success). */
+  lcCreditedAt?: string;
+  /** Sell flow: when logistics details were sent (minerals to our place). */
+  logisticsDetailsSentAt?: string;
+  /** Sell flow: transaction shared with (testing_team, logistics, commercial). */
+  transactionSharedWith?: string;
 }
 
 export interface Transaction {
@@ -267,6 +281,7 @@ export interface Facility {
   usageHistory: { id: string; type: "Buy" | "Sell"; mineral: string; qty: string; status: string; date: string }[];
 }
 
+/** Payment/bank method added by user in the app; linked to userId for display on transaction bank details. */
 export interface LinkedPaymentMethod {
   id: string;
   label: string;
@@ -274,6 +289,12 @@ export interface LinkedPaymentMethod {
   isPrimary: boolean;
   verified: boolean;
   lastUsed: string;
+  /** User who added this in the app – links to order.userId so transaction bank details can show "from app". */
+  userId?: string;
+  /** Bank details entered in app (when provided). */
+  accountName?: string;
+  bankName?: string;
+  swiftBic?: string;
 }
 
 export interface Dispute {
@@ -651,6 +672,27 @@ const initialTransactions: Transaction[] = [
     sanctionsResult: "Clear",
     payoutId: "PO-002",
   },
+  {
+    id: "TX-9923-MB",
+    orderId: "B-ORD-5512",
+    orderType: "Buy",
+    mineral: "Gold Bars 24k",
+    aiEstimate: "$3,245,000",
+    finalAmount: "$850,000",
+    serviceFee: "$2,100",
+    netAmount: "$847,900",
+    currency: "USD",
+    method: "Bank Transfer",
+    status: "Failed",
+    date: "Feb 10, 2026",
+    time: "03:15 PM",
+    paymentDetails: {},
+    settlementNote: "Bank rejected – insufficient verification. Retry after KYC refresh.",
+    adminNotes: [{ admin: "Miller", text: "Escalated to compliance.", date: "Feb 10, 2026" }],
+    payerCountry: "Switzerland",
+    beneficiaryCountry: "Ghana",
+    isInternational: true,
+  },
 ];
 
 const initialPayouts: Payout[] = [
@@ -681,8 +723,9 @@ const initialFacilities: Facility[] = [
 ];
 
 const initialPaymentMethods: LinkedPaymentMethod[] = [
-  { id: "pm-1", label: "Commercial Bank of Ethiopia", maskedNumber: "•••• 4829", isPrimary: true, verified: true, lastUsed: "Today, 10:23 AM" },
-  { id: "pm-2", label: "Wise (International)", maskedNumber: "•••• 9921", isPrimary: false, verified: true, lastUsed: "Oct 12, 2025" },
+  { id: "pm-1", label: "Standard Chartered Ghana", maskedNumber: "•••• 8821", isPrimary: true, verified: true, lastUsed: "Today, 10:23 AM", userId: DEFAULT_USER_ID, accountName: "Samuel Osei Trading Ltd", bankName: "Standard Chartered Ghana", swiftBic: "SCBLGHAC" },
+  { id: "pm-2", label: "Wise (International)", maskedNumber: "•••• 9921", isPrimary: false, verified: true, lastUsed: "Oct 12, 2025", userId: DEFAULT_USER_ID },
+  { id: "pm-3", label: "HSBC Switzerland", maskedNumber: "•••• 3344", isPrimary: true, verified: true, lastUsed: "Feb 02, 2026", userId: "MB-USR-5567-B", accountName: "Zurich Commodities AG", bankName: "HSBC Switzerland", swiftBic: "HBSGINZZ" },
 ];
 
 const initialDisputes: Dispute[] = [
@@ -690,7 +733,9 @@ const initialDisputes: Dispute[] = [
   { id: "D-0457", orderId: "S-ORD-8821", status: "In Review", buyer: { name: "Platform" }, seller: { name: "Samuel Osei" }, mineral: "Gold Dust (92%) 12.5 KG", amount: "$724,200", raisedAt: "Feb 04, 2026" },
 ];
 
+/** When a user requests a callback in the app, the app (or backend) should dispatch ADD_ENQUIRY with type: "Callback" and subject "Request callback". It then appears in Enquiry & Support and in the Dashboard "Need support" count. */
 const initialEnquiries: Enquiry[] = [
+  { id: "TKT-2025", userId: "MB-USR-8821-B", subject: "Request callback", preview: "User requested a callback from the app. Please call back at their preferred time.", status: "Open", priority: "High", time: "5 mins ago", type: "Callback" },
   { id: "TKT-2024", userId: DEFAULT_USER_ID, subject: "Shipment documentation delay", preview: "We have not received the Bill of Lading for order #B-ORD-5489 yet...", status: "Open", priority: "High", time: "10 mins ago", type: "Logistics" },
   { id: "TKT-2023", userId: "MB-USR-8821-B", subject: "Payment verification issue", preview: "Our payment of $50,000 is showing as pending for 24 hours...", status: "In Progress", priority: "Critical", time: "2 hours ago", type: "Finance" },
   { id: "TKT-2021", userId: "MB-USR-3391-S", subject: "New Mineral Listing Question", preview: "What are the specific requirements for listing Lithium Ore Grade A?", status: "Open", priority: "Medium", time: "5 hours ago", type: "General" },
@@ -972,6 +1017,17 @@ const initialState: DashboardState = {
       notes: "Armored transport to facility",
       updatedAt: "Jan 25, 2026",
     },
+    "S-ORD-8821": {
+      orderId: "S-ORD-8821",
+      carrierName: "Mineral Bridge Logistics",
+      trackingNumber: "MB-SELL-8821",
+      trackingUrl: "https://track.mineralbridge.com/S-ORD-8821",
+      qrPayload: "https://track.mineralbridge.com/S-ORD-8821",
+      contactPhone: "+233 24 555 0192",
+      contactEmail: "logistics@mineralbridge.com",
+      notes: "Minerals to our place (Sunyani → Accra)",
+      updatedAt: "Feb 05, 2026",
+    },
   },
   appActivities: [
     { id: "app-1", userId: DEFAULT_USER_ID, type: "profile_updated", description: "Profile name and phone updated", at: new Date(Date.now() - 86400000).toISOString() },
@@ -1068,9 +1124,14 @@ export function useDashboardStats() {
   const recentOrders = allOrders.slice(0, 5);
   const recentTransactions = state.transactions.slice(0, 5);
   const hasFailedTx = state.transactions.some((t) => t.status === "Failed");
+  const openEnquiriesCount = state.enquiries.filter((e) => e.status !== "Resolved").length;
+  /** Callback requests from the app (user requested a call back) — shown in Enquiry & Support and on Dashboard. */
+  const callbackRequestsCount = state.enquiries.filter((e) => e.type === "Callback" && e.status !== "Resolved").length;
   return {
     totalUsers,
     pendingOrders,
+    openEnquiriesCount,
+    callbackRequestsCount,
     revenueSum,
     pendingSettlement,
     usersUnderReview,

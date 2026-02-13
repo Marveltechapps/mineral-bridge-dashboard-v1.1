@@ -35,14 +35,14 @@ export function Stepper6({ activeStep, onStepChange }: Stepper6Props) {
               >
                 <button
                   type="button"
-                  className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold shadow-lg transition-all ${
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold shadow-lg transition-all cursor-pointer ${
                     isActive
                       ? "bg-gradient-to-r from-[#A855F7] to-purple-500 text-white shadow-[#A855F7]/50 scale-110"
                       : isCompleted
-                        ? "bg-emerald-500 text-white shadow-emerald-500/50"
-                        : "bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600 cursor-pointer"
+                        ? "bg-emerald-500 text-white shadow-emerald-500/50 hover:opacity-90"
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600 hover:ring-2 hover:ring-[#A855F7]/50"
                   }`}
-                  onClick={() => stepNum <= activeStep && onStepChange?.(stepNum)}
+                  onClick={() => onStepChange?.(stepNum)}
                 >
                   {isCompleted ? "✓" : stepNum}
                 </button>

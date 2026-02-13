@@ -91,9 +91,12 @@ export function BuyFlow6({
                 <DialogTitle>Send QR to buyer</DialogTitle>
               </DialogHeader>
               <QRGenerator
+                method="amount"
                 data={{
                   orderId: order.id,
                   value,
+                  amount: value,
+                  currency: order.currency ?? "USD",
                   nextStep: "team-contact",
                   teamPhone: order.contactInfo?.phone ?? undefined,
                 }}

@@ -117,6 +117,8 @@ export function OrderTransactionManagement({
   const [methodFilter, setMethodFilter] = useState<"all" | "Bank Transfer" | "Wise" | "Blockchain Settlement">("all");
   const allOrders = useAllOrders();
   const transactions = state.transactions;
+  // Only open sheet when initialTransactionId is set/changed — do NOT depend on state.transactions/allOrders
+  // (they are new refs every render and would cause the effect to run in a loop and keep re-opening the sheet).
   useEffect(() => {
     if (!initialTransactionId) return;
     const tx = state.transactions.find((t) => t.id === initialTransactionId);
@@ -125,7 +127,8 @@ export function OrderTransactionManagement({
       const order = allOrders.find((o) => o.id === tx.orderId);
       if (order) setOrderForView(order);
     }
-  }, [initialTransactionId, state.transactions, allOrders]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only react to initialTransactionId
+  }, [initialTransactionId]);
   const orders = useMemo(() => {
     let list = allOrders;
     if (searchTerm.trim()) {
@@ -206,7 +209,7 @@ export function OrderTransactionManagement({
         </div>
       </div>
 
-      {/* Metrics - exact 4 cards */}
+      {/* Settlement & order metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="border-slate-200 dark:border-slate-700">
           <CardContent className="p-4">

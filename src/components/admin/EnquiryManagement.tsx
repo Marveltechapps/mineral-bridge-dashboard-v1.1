@@ -5,7 +5,8 @@ import {
   Paperclip,
   Send,
   MoreHorizontal,
-  Archive
+  Archive,
+  Phone
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -22,10 +23,13 @@ export interface EnquirySupportManagementProps {
   initialUserId?: string;
 }
 
+type TicketFilter = "all" | "Open" | "Resolved" | "Callback";
+
 export function EnquirySupportManagement({ initialUserId }: EnquirySupportManagementProps = {}) {
   const { state, dispatch } = useDashboardStore();
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [typeFilter, setTypeFilter] = useState<TicketFilter>("all");
 
   useEffect(() => {
     if (!initialUserId) return;
@@ -38,19 +42,30 @@ export function EnquirySupportManagement({ initialUserId }: EnquirySupportManage
     [state.enquiries, selectedTicket]
   );
 
+  const callbackCount = useMemo(
+    () => state.enquiries.filter((e) => e.type === "Callback" && e.status !== "Resolved").length,
+    [state.enquiries]
+  );
+
   const tickets = useMemo(
     () =>
-      state.enquiries.map((e) => ({
-        id: e.id,
-        user: getRegistryUserName(state.registryUsers, e.userId) || "—",
-        subject: e.subject,
-        preview: e.preview,
-        status: e.status,
-        priority: e.priority,
-        time: e.time,
-        type: e.type,
-      })),
-    [state.enquiries, state.registryUsers]
+      state.enquiries
+        .filter((e) => {
+          if (typeFilter === "all") return true;
+          if (typeFilter === "Callback") return e.type === "Callback";
+          return e.status === typeFilter;
+        })
+        .map((e) => ({
+          id: e.id,
+          user: getRegistryUserName(state.registryUsers, e.userId) || "—",
+          subject: e.subject,
+          preview: e.preview,
+          status: e.status,
+          priority: e.priority,
+          time: e.time,
+          type: e.type,
+        })),
+    [state.enquiries, state.registryUsers, typeFilter]
   );
 
   return (
@@ -67,10 +82,35 @@ export function EnquirySupportManagement({ initialUserId }: EnquirySupportManage
             />
           </div>
           <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
-            <Badge variant="secondary" className="cursor-pointer bg-slate-100 hover:bg-slate-200 dark:bg-slate-800">All</Badge>
-            <Badge variant="outline" className="cursor-pointer">Open</Badge>
-            <Badge variant="outline" className="cursor-pointer">Resolved</Badge>
-            <Badge variant="outline" className="cursor-pointer">High Priority</Badge>
+            <Badge
+              variant={typeFilter === "all" ? "secondary" : "outline"}
+              className={`cursor-pointer ${typeFilter === "all" ? "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800" : ""}`}
+              onClick={() => setTypeFilter("all")}
+            >
+              All
+            </Badge>
+            <Badge
+              variant={typeFilter === "Open" ? "secondary" : "outline"}
+              className={`cursor-pointer ${typeFilter === "Open" ? "bg-slate-100 dark:bg-slate-800" : ""}`}
+              onClick={() => setTypeFilter("Open")}
+            >
+              Open
+            </Badge>
+            <Badge
+              variant={typeFilter === "Resolved" ? "secondary" : "outline"}
+              className={`cursor-pointer ${typeFilter === "Resolved" ? "bg-slate-100 dark:bg-slate-800" : ""}`}
+              onClick={() => setTypeFilter("Resolved")}
+            >
+              Resolved
+            </Badge>
+            <Badge
+              variant={typeFilter === "Callback" ? "secondary" : "outline"}
+              className={`cursor-pointer gap-1 ${typeFilter === "Callback" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" : ""}`}
+              onClick={() => setTypeFilter("Callback")}
+            >
+              <Phone className="w-3 h-3" />
+              Callback {callbackCount > 0 && `(${callbackCount})`}
+            </Badge>
           </div>
         </div>
         
@@ -88,11 +128,16 @@ export function EnquirySupportManagement({ initialUserId }: EnquirySupportManage
                   <span className="font-semibold text-sm truncate pr-2">{ticket.user}</span>
                   <span className="text-xs text-muted-foreground whitespace-nowrap">{ticket.time}</span>
                 </div>
-                <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">{ticket.subject}</h4>
+                <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-1.5">
+                  {ticket.type === "Callback" && <Phone className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" title="Request callback from app" />}
+                  {ticket.subject}
+                </h4>
                 <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{ticket.preview}</p>
                 <div className="flex gap-2">
                   <StatusBadge status={ticket.status} className="h-5 px-1.5 text-[10px]" />
-                  <Badge variant="outline" className="text-[10px] h-5 px-1.5">{ticket.type}</Badge>
+                  <Badge variant="outline" className={`text-[10px] h-5 px-1.5 ${ticket.type === "Callback" ? "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400" : ""}`}>
+                    {ticket.type === "Callback" ? "Request callback" : ticket.type}
+                  </Badge>
                 </div>
               </div>
             ))}
@@ -112,11 +157,20 @@ export function EnquirySupportManagement({ initialUserId }: EnquirySupportManage
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">{selectedEnquiry.subject}</h2>
-                  <div className="flex items-center gap-2 mt-1">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    {selectedEnquiry.type === "Callback" && <Phone className="w-5 h-5 text-amber-600 dark:text-amber-400" title="Request callback from app" />}
+                    {selectedEnquiry.subject}
+                  </h2>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-sm text-muted-foreground">Ticket #{selectedEnquiry.id}</span>
                     <span className="text-sm text-muted-foreground">•</span>
                     <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{getRegistryUserName(state.registryUsers, selectedEnquiry.userId) || "—"}</span>
+                    {selectedEnquiry.type === "Callback" && (
+                      <>
+                        <span className="text-sm text-muted-foreground">•</span>
+                        <span className="text-sm text-amber-600 dark:text-amber-400 font-medium">Request callback from app</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

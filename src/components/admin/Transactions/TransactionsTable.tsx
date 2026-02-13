@@ -96,7 +96,7 @@ export function TransactionsTable({
                       size="icon"
                       className="h-8 w-8 text-[#A855F7]"
                       onClick={() => onQRClick?.(row)}
-                      title="Generate QR"
+                      title="Send QR or link to user"
                     >
                       <QrCode className="h-4 w-4" />
                     </Button>

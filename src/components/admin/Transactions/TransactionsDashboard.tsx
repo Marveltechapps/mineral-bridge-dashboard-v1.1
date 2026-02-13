@@ -8,6 +8,7 @@ import {
   type TransactionRow,
 } from "./TransactionsTable";
 import { TransactionDetailTabs } from "./TransactionDetailTabs";
+import { BankDetailsCard } from "./BankDetailsCard";
 
 export function TransactionsDashboard({
   onOpenOrderDetail,
@@ -16,6 +17,7 @@ export function TransactionsDashboard({
 }) {
   const { state, dispatch } = useDashboardStore();
   const [selectedRow, setSelectedRow] = useState<TransactionRow | null>(null);
+  const [openSendToUserTab, setOpenSendToUserTab] = useState(false);
 
   const rows = useMemo(
     () =>
@@ -77,7 +79,7 @@ export function TransactionsDashboard({
           Transactions Dashboard
         </h1>
         <p className="text-muted-foreground">
-          End-to-end BUY/SELL flows, QR notifications, testing, LC & logistics.
+          End-to-end BUY/SELL flows, QR notifications, testing, LC & logistics. Click a row to open Testing, Logistics, and full transaction details below.
         </p>
       </div>
 
@@ -97,25 +99,38 @@ export function TransactionsDashboard({
         <TimelineStepper steps={pipelineSteps} />
       </div>
 
+      {/* Bank details – enter buyer/seller account and bank info */}
+      <BankDetailsCard state={state} dispatch={dispatch} preselectedTransactionId={selectedRow ? state.transactions.find((t) => t.orderId === selectedRow.id)?.id ?? null : null} />
+
       {/* Main table */}
       <TransactionsTable
         rows={rows}
-        onRowClick={setSelectedRow}
+        onRowClick={(row) => {
+          setSelectedRow(row);
+          setOpenSendToUserTab(false);
+        }}
         onViewFlow={(row) => {
           setSelectedRow(row);
+          setOpenSendToUserTab(false);
           onOpenOrderDetail?.(row.id, row.type === "Buy" ? "buy" : "sell");
         }}
-        onQRClick={(row) => setSelectedRow(row)}
+        onQRClick={(row) => {
+          setSelectedRow(row);
+          setOpenSendToUserTab(true);
+        }}
       />
 
-      {/* Detail tabs when a row is selected */}
+      {/* Detail tabs when a row is selected – Testing & Logistics are here */}
       {selectedRow && (
         <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-          <h2 className="text-lg font-semibold mb-4">Transaction detail</h2>
+          <h2 className="text-lg font-semibold mb-1">Transaction detail</h2>
+          <p className="text-sm text-muted-foreground mb-4">Buy Flow: Send QR/link to buyer (delivered in app), then contact &amp; payment. Send QR / link tab, Overview, Payment &amp; bank, LC &amp; Banking, Testing (Sell only), Logistics.</p>
           <TransactionDetailTabs
+            key={`${selectedRow.id}-${openSendToUserTab}`}
             row={selectedRow}
             state={state}
             dispatch={dispatch}
+            defaultTab={openSendToUserTab ? "sendToUser" : "overview"}
           />
         </div>
       )}

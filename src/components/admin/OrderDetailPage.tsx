@@ -302,8 +302,15 @@ export function OrderDetailPage({
     setOrderCompletedNote("");
   };
 
+  const flowStepsForPipeline = getFlowStepsForDisplay(order, type);
+  const nextStepAction = () => {
+    if (order.status === "Cancelled") return;
+    setOrderForStatus(order);
+    setNewStatus(order.status);
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Breadcrumbs */}
       <Breadcrumb className="mb-2">
         <BreadcrumbList>
@@ -327,81 +334,90 @@ export function OrderDetailPage({
         </BreadcrumbList>
       </Breadcrumb>
 
-      {/* Header */}
-      <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-6 py-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white">{order.id}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {type === "sell" ? "Sell" : "Buy"} order · {getRegistryUserName(state.registryUsers, order.userId)} · {order.createdAt}
-            </p>
-            <div className="flex flex-wrap items-center gap-2 mt-3">
-              <Badge
-                variant="outline"
-                className={type === "sell" ? "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400" : "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"}
-              >
-                {type === "sell" ? "Sell" : "Buy"}
-              </Badge>
-              <Badge className={getOrderStatusColor(order.status)}>{order.status}</Badge>
-              <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                {order.aiEstimatedAmount}
-              </span>
+      {/* Header - Order summary (card style, consistent with dashboard) */}
+      <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{order.id}</h1>
+                <Badge className={getOrderStatusColor(order.status)}>{order.status}</Badge>
+                <Badge variant="outline" className={type === "sell" ? "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400" : "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"}>
+                  {type === "sell" ? "Sell" : "Buy"}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {getRegistryUserName(state.registryUsers, order.userId)} · {order.createdAt}
+              </p>
+              <p className="text-lg font-medium text-slate-800 dark:text-slate-200 mt-1">
+                {order.mineral} · {order.qty} {order.unit}
+              </p>
+              <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                {order.aiEstimatedAmount} {order.currency}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {order.status !== "Cancelled" && (
+                <Button size="default" className="bg-emerald-600 hover:bg-emerald-700" onClick={nextStepAction}>
+                  Complete Next Step →
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => { setOrderForStatus(order); setNewStatus(order.status); }}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Update Status
+              </Button>
+              {order.status !== "Cancelled" && (
+                <Button variant="outline" size="sm" className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => setOrderForCancel(order)}>
+                  <Ban className="h-4 w-4 mr-2" />
+                  Cancel Order
+                </Button>
+              )}
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setOrderForStatus(order);
-                setNewStatus(order.status);
-              }}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Update Status
-            </Button>
-            {order.status !== "Cancelled" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                onClick={() => setOrderForCancel(order)}
-              >
-                <Ban className="h-4 w-4 mr-2" />
-                Cancel Order
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg w-auto">
-          <TabsTrigger value="overview" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
-            <Gem className="h-4 w-4" /> Overview
-          </TabsTrigger>
-          <TabsTrigger value="flow" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
-            <History className="h-4 w-4" /> Flow & Status
-          </TabsTrigger>
-          <TabsTrigger value="communication" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
-            <MessageSquare className="h-4 w-4" /> Communication
-          </TabsTrigger>
-          <TabsTrigger value="testing" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
-            <FileText className="h-4 w-4" /> Testing & Docs
-          </TabsTrigger>
-          <TabsTrigger value="sent" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
-            <Send className="h-4 w-4" /> Sent to User
+      {/* Order progress (card style - flow lives in Orders & Settlements; here only a summary) */}
+      <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Order progress</CardTitle>
+          <CardDescription>Current step for this order. Full pipeline is in Orders &amp; Settlements.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-2">
+            {flowStepsForPipeline.map((s, i) => (
+              <div key={s.label} className="flex items-center gap-1.5 flex-shrink-0">
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-semibold ${
+                    s.completed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : s.active ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                  }`}
+                >
+                  {s.completed ? "✓" : i + 1}
+                </div>
+                <span className={`text-xs font-medium max-w-[90px] truncate ${s.active ? "text-slate-900 dark:text-white" : "text-muted-foreground"}`}>{s.label}</span>
+                {i < flowStepsForPipeline.length - 1 && <span className="text-muted-foreground/60 mx-0.5">→</span>}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabs: Detail (single detailed view), Financial, Activity - no duplicate flow from other sections */}
+      <Tabs defaultValue="detail" className="w-full">
+        <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 gap-1 rounded-lg w-auto">
+          <TabsTrigger value="detail" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
+            <Gem className="h-4 w-4" /> Order detail
           </TabsTrigger>
           <TabsTrigger value="transaction" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
-            <CreditCard className="h-4 w-4" /> Related Transaction
+            <CreditCard className="h-4 w-4" /> Financial &amp; transaction
           </TabsTrigger>
-          <TabsTrigger value="linked" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
-            <Link2 className="h-4 w-4" /> Linked across dashboard
+          <TabsTrigger value="activity" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
+            <MessageSquare className="h-4 w-4" /> Activity &amp; docs
           </TabsTrigger>
         </TabsList>
 
         <div className="mt-4 space-y-6">
-          <TabsContent value="overview" className="mt-0 space-y-6">
+          <TabsContent value="detail" className="mt-0 space-y-6">
             <Card className="border-none shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Order &amp; user</CardTitle>
@@ -659,138 +675,7 @@ export function OrderDetailPage({
             </Card>
           </TabsContent>
 
-          <TabsContent value="flow" className="mt-0 space-y-6">
-            {type === "buy" && (
-              <Card className="border-none shadow-sm bg-slate-50 dark:bg-slate-900/50 border border-emerald-200/50 dark:border-emerald-800/50">
-                <CardContent className="pt-4 pb-4">
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mb-1">Buy order flow</p>
-                  <p className="text-xs text-muted-foreground">
-                    Order received → <strong>Team contacts user</strong> (email or mobile; log in Communication) → <strong>Price confirmed</strong> → <strong>Bank transaction</strong> (record bank details/code in Payment step and in Sent to User) → <strong>Logistics</strong> (add logistics link in Sent to User / Linked) → Order completed.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-            <Card className="border-none shadow-sm">
-              <CardHeader className="pb-2 flex flex-row items-start justify-between gap-4">
-                <div>
-                  <CardTitle className="text-base">Flow &amp; status</CardTitle>
-                  <CardDescription>
-                    {type === "buy"
-                      ? "Follow the flow above. Change status to move the current step; complete steps to record price, bank details, and completion."
-                      : "Order pipeline. Change status to move the current step; completed steps update automatically."}
-                  </CardDescription>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => { setOrderForStatus(order); setNewStatus(order.status); }}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Update status
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {(() => {
-                  const flowSteps = getFlowStepsForDisplay(order, type);
-                  const currentStatus = order.status;
-                  const d = order.flowStepData;
-                  const stepHints: Record<string, string> = type === "buy" ? {
-                    "Order Submitted": "Order received on dashboard.",
-                    "Awaiting Team Contact": "Contact user by email or mobile; add a log entry in Communication with \"Contacted via\".",
-                    "Price Confirmed": "Confirm final price with user; record amount here.",
-                    "Payment Initiated": "Bank transaction: record method and reference; optionally send bank details/code via Sent to User.",
-                    "Order Completed": "After logistics: add logistics link in Sent to User / Linked, then mark completed.",
-                  } : {};
-                  return (
-                    <div className="space-y-3">
-                      {flowSteps.map((s, i) => {
-                        const stepKey = s.label === "Price Confirmed" ? "priceConfirmed" : s.label === "Payment Initiated" ? "paymentInitiated" : s.label === "Order Completed" ? "orderCompleted" : null;
-                        const hasData = stepKey && d?.[stepKey];
-                        const openStepDialog = !s.completed && stepKey === "priceConfirmed" ? () => { setPriceConfirmedFinalAmount(order.aiEstimatedAmount || ""); setPriceConfirmedNote(""); setStepDialog("priceConfirmed"); } :
-                          !s.completed && stepKey === "paymentInitiated" ? () => { setPaymentMethod("Bank Transfer"); setPaymentReference(""); setPaymentNote(""); setStepDialog("paymentInitiated"); } :
-                          !s.completed && stepKey === "orderCompleted" ? () => { setOrderCompletedNote(""); setStepDialog("orderCompleted"); } : null;
-                        return (
-                          <div key={s.label} className="flex flex-col gap-1 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                            <div className="flex items-center gap-4">
-                              <div
-                                className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 transition-colors ${
-                                  s.completed
-                                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                                    : s.active
-                                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-2 ring-amber-300 dark:ring-amber-600"
-                                      : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                                }`}
-                              >
-                                {s.completed ? "✓" : i + 1}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={`font-medium ${s.active ? "text-slate-900 dark:text-white" : "text-muted-foreground"}`}>
-                                  {s.label}
-                                  {s.active && (
-                                    <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">(current)</span>
-                                  )}
-                                </p>
-                                {stepHints[s.label] && (
-                                  <p className="text-xs text-muted-foreground mt-0.5">{stepHints[s.label]}</p>
-                                )}
-                                {s.completed && hasData && (
-                                  <p className="text-xs text-muted-foreground mt-0.5">
-                                    {stepKey === "priceConfirmed" && d?.priceConfirmed && (
-                                      <>Final amount: {d.priceConfirmed.finalAmount} {d.priceConfirmed.currency} · {d.priceConfirmed.confirmedAt}</>
-                                    )}
-                                    {stepKey === "paymentInitiated" && d?.paymentInitiated && (
-                                      <>{d.paymentInitiated.method}{d.paymentInitiated.reference ? ` · ${d.paymentInitiated.reference}` : ""} · {d.paymentInitiated.initiatedAt}</>
-                                    )}
-                                    {stepKey === "orderCompleted" && d?.orderCompleted && (
-                                      <>Completed {d.orderCompleted.completedAt}{d.orderCompleted.note ? ` · ${d.orderCompleted.note}` : ""}</>
-                                    )}
-                                  </p>
-                                )}
-                              </div>
-                              {!s.completed && currentStatus !== "Cancelled" && (
-                                openStepDialog ? (
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    className="bg-emerald-600 hover:bg-emerald-700 shrink-0"
-                                    onClick={openStepDialog}
-                                  >
-                                    Complete this step
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 shrink-0"
-                                    onClick={() => {
-                                      const statusForStep = s.label === "Order Completed" ? "Completed" : s.label;
-                                      const statusList = type === "buy" ? BUY_ORDER_STATUSES : ORDER_STATUSES;
-                                      const valid = statusList.includes(statusForStep as typeof statusList[number]);
-                                      setOrderForStatus(order);
-                                      setNewStatus(valid ? statusForStep : order.status);
-                                    }}
-                                  >
-                                    Set as current
-                                  </Button>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {currentStatus === "Cancelled" && (
-                        <p className="text-sm text-muted-foreground pt-2 border-t border-slate-100 dark:border-slate-800 mt-2">
-                          Order is cancelled. Use another order to change pipeline.
-                        </p>
-                      )}
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="communication" className="mt-0 space-y-6">
+          <TabsContent value="activity" className="mt-0 space-y-6">
             <Card className="border-none shadow-sm">
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <div>
@@ -834,9 +719,7 @@ export function OrderDetailPage({
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
 
-          <TabsContent value="testing" className="mt-0 space-y-6">
             <Card className="border-none shadow-sm">
               <CardHeader className="pb-2 flex flex-row items-start justify-between gap-4">
                 <div>
@@ -913,14 +796,12 @@ export function OrderDetailPage({
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
 
-          <TabsContent value="sent" className="mt-0 space-y-6">
             <Card className="border-none shadow-sm">
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <div>
                   <CardTitle className="text-base">Sent to user</CardTitle>
-                  <CardDescription>Record what you send to the user — bank details link, QR code, logistics link. Use &quot;Record sent&quot; and choose the type. This is reflected in the app for the user.</CardDescription>
+                  <CardDescription>Record what you send to the user — bank details link, QR code, logistics link. Use &quot;Record sent&quot; and choose the type. This is reflected in the app for the user. Linked to this order and its transaction and logistics.</CardDescription>
                 </div>
                 <Button size="sm" variant="outline" onClick={() => { setSentType("transport_link"); setSentLabel(""); setSentChannel("App"); setSentDetail(""); setAddSentOpen(true); }}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -928,6 +809,23 @@ export function OrderDetailPage({
                 </Button>
               </CardHeader>
               <CardContent>
+                <div className="flex flex-wrap items-center gap-3 py-2 px-3 rounded-lg bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 mb-4">
+                  <span className="text-xs font-medium text-muted-foreground">Connected to:</span>
+                  <span className="text-xs">Order <strong>{order.id}</strong></span>
+                  <span className="text-xs text-muted-foreground">·</span>
+                  <span className="text-xs">
+                    Transaction: {relatedTx ? <strong className="text-emerald-600 dark:text-emerald-400">{relatedTx.id}</strong> : "None linked"}
+                  </span>
+                  {onNavigateToLogistics && (
+                    <>
+                      <span className="text-xs text-muted-foreground">·</span>
+                      <Button variant="link" size="sm" className="h-auto p-0 text-xs text-[#A855F7]" onClick={() => onNavigateToLogistics(order.id)}>
+                        <Truck className="h-3.5 w-3 mr-1" />
+                        {logistics ? "View logistics" : "Open Logistics"}
+                      </Button>
+                    </>
+                  )}
+                </div>
                 {order.sentToUser?.length ? (
                   <div className="space-y-0">
                     {order.sentToUser.map((s, i) => (
@@ -960,6 +858,65 @@ export function OrderDetailPage({
                     </Button>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><Link2 className="h-4 w-4" /> Linked across dashboard</CardTitle>
+                <CardDescription>This order connects to User Management, Orders &amp; Settlements, Enquiry &amp; Support, Disputes, and Logistics.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <Users className="h-5 w-5 text-slate-500" />
+                    <div>
+                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100">User</p>
+                      <p className="text-xs text-muted-foreground">{order.userId ? `${getRegistryUserName(state.registryUsers, order.userId)} · ${order.userId}` : "Not linked"}</p>
+                    </div>
+                  </div>
+                  {onNavigateToUser && order.userId && <Button variant="outline" size="sm" onClick={() => onNavigateToUser(order.userId)}>View in User Management</Button>}
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="h-5 w-5 text-slate-500" />
+                    <div>
+                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100">Transaction</p>
+                      <p className="text-xs text-muted-foreground">{relatedTx ? `${relatedTx.id} · ${relatedTx.finalAmount}` : "No settlement linked"}</p>
+                    </div>
+                  </div>
+                  {onNavigateToOrders && <Button variant="outline" size="sm" onClick={() => onNavigateToOrders(relatedTx?.id)}>{relatedTx ? "View in Orders &amp; Settlements" : "Open Orders &amp; Settlements"}</Button>}
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <Gavel className="h-5 w-5 text-slate-500" />
+                    <div>
+                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100">Disputes</p>
+                      <p className="text-xs text-muted-foreground">{orderDisputes.length > 0 ? `${orderDisputes.length} dispute(s)` : "None"}</p>
+                    </div>
+                  </div>
+                  {onNavigateToDisputes && <Button variant="outline" size="sm" onClick={() => onNavigateToDisputes(order.id)}>View Disputes</Button>}
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <HelpCircle className="h-5 w-5 text-slate-500" />
+                    <div>
+                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100">Enquiries</p>
+                      <p className="text-xs text-muted-foreground">{userEnquiries.length > 0 ? `${userEnquiries.length} ticket(s)` : "None"}</p>
+                    </div>
+                  </div>
+                  {onNavigateToEnquiries && <Button variant="outline" size="sm" onClick={() => onNavigateToEnquiries(order.userId)}>Enquiry &amp; Support</Button>}
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <Truck className="h-5 w-5 text-slate-500" />
+                    <div>
+                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100">Logistics</p>
+                      <p className="text-xs text-muted-foreground">{logistics ? `${logistics.carrierName} · ${logistics.trackingNumber}` : "No record"}</p>
+                    </div>
+                  </div>
+                  {onNavigateToLogistics && <Button variant="outline" size="sm" onClick={() => onNavigateToLogistics(order.id)}>{logistics ? "View Logistics" : "Open Logistics"}</Button>}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1072,106 +1029,6 @@ export function OrderDetailPage({
                     )}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="linked" className="mt-0 space-y-6">
-            <Card className="border-none shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2"><Link2 className="h-4 w-4" /> Linked across dashboard</CardTitle>
-                <CardDescription>This order connects to User Management, Orders &amp; Settlements, Enquiry &amp; Support (chat/support), Disputes, and Logistics. What you record in Sent to User (bank link, QR, logistics) is reflected in the app for the user.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {/* User - always show row */}
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <Users className="h-5 w-5 text-slate-500" />
-                    <div>
-                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100">User</p>
-                      <p className="text-xs text-muted-foreground">
-                        {order.userId ? `${getRegistryUserName(state.registryUsers, order.userId)} · ${order.userId}` : "Not linked"}
-                      </p>
-                    </div>
-                  </div>
-                  {onNavigateToUser && order.userId && (
-                    <Button variant="outline" size="sm" onClick={() => onNavigateToUser(order.userId)}>
-                      View in User Management
-                    </Button>
-                  )}
-                </div>
-                {/* Transaction */}
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <CreditCard className="h-5 w-5 text-slate-500" />
-                    <div>
-                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100">Transaction</p>
-                      <p className="text-xs text-muted-foreground">
-                        {relatedTx ? `${relatedTx.id} · ${relatedTx.finalAmount} · ${relatedTx.status}` : "No settlement linked"}
-                      </p>
-                    </div>
-                  </div>
-                  {onNavigateToOrders && (
-                    <Button variant="outline" size="sm" onClick={() => onNavigateToOrders(relatedTx?.id)}>
-                      {relatedTx ? "View in Orders &amp; Settlements" : "Open Orders &amp; Settlements"}
-                    </Button>
-                  )}
-                </div>
-                {/* Disputes - always show row */}
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <Gavel className="h-5 w-5 text-slate-500" />
-                    <div>
-                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100">Disputes</p>
-                      <p className="text-xs text-muted-foreground">
-                        {orderDisputes.length > 0
-                          ? `${orderDisputes.length} dispute(s): ${orderDisputes.map((d) => d.id).join(", ")}`
-                          : "No disputes for this order"}
-                      </p>
-                    </div>
-                  </div>
-                  {onNavigateToDisputes && (
-                    <Button variant="outline" size="sm" onClick={() => onNavigateToDisputes(order.id)}>
-                      {orderDisputes.length > 0 ? "View in Disputes" : "Open Disputes"}
-                    </Button>
-                  )}
-                </div>
-                {/* Enquiries - always show row */}
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <HelpCircle className="h-5 w-5 text-slate-500" />
-                    <div>
-                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100">Enquiries (this user)</p>
-                      <p className="text-xs text-muted-foreground">
-                        {userEnquiries.length > 0
-                          ? `${userEnquiries.length} ticket(s): ${userEnquiries.slice(0, 2).map((e) => e.subject).join("; ")}${userEnquiries.length > 2 ? "…" : ""}`
-                          : "No enquiries from this user"}
-                      </p>
-                    </div>
-                  </div>
-                  {onNavigateToEnquiries && (
-                    <Button variant="outline" size="sm" onClick={() => onNavigateToEnquiries(order.userId)}>
-                      {userEnquiries.length > 0 ? "View in Enquiry &amp; Support" : "Open Enquiry &amp; Support"}
-                    </Button>
-                  )}
-                </div>
-                {/* Logistics - always show row */}
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <Truck className="h-5 w-5 text-slate-500" />
-                    <div>
-                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100">Logistics</p>
-                      <p className="text-xs text-muted-foreground">
-                        {logistics ? `${logistics.carrierName} · ${logistics.trackingNumber}` : "No logistics record for this order"}
-                      </p>
-                    </div>
-                  </div>
-                  {onNavigateToLogistics && (
-                    <Button variant="outline" size="sm" onClick={() => onNavigateToLogistics(order.id)}>
-                      {logistics ? "View in Logistics" : "Open Logistics"}
-                    </Button>
-                  )}
-                </div>
               </CardContent>
             </Card>
           </TabsContent>

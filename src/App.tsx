@@ -248,6 +248,8 @@ export default function App() {
               setOrderDetail({ orderId, type });
               setCurrentView(type === "sell" ? "sell-order-detail" : "buy-order-detail");
             }}
+            onNavigateToEnquiries={() => setCurrentView("enquiries")}
+            onOpenLogisticsDetail={(orderId) => navigateTo("logistics", { selectedOrderId: orderId })}
           />
         );
       case "content":

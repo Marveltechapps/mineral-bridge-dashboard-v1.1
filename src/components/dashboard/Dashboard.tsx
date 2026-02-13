@@ -53,7 +53,7 @@ const QUICK_ACCESS: { view: string; label: string; icon: React.ComponentType<{ c
 
 export function Dashboard({ onViewChange, onOpenOrder, onOpenTransaction, onOpenUser }: DashboardProps) {
   const { state } = useDashboardStore();
-  const { totalUsers, pendingOrders, revenueSum, usersUnderReview, recentOrders, recentTransactions, hasFailedTx } = useDashboardStats();
+  const { totalUsers, pendingOrders, revenueSum, usersUnderReview, recentOrders, recentTransactions, hasFailedTx, openEnquiriesCount, callbackRequestsCount } = useDashboardStats();
   const recentAppActivity = state.appActivities.slice(0, 8);
   const verifiedMineralsCount = state.minerals.filter((m) => m.verificationStatus === "Verified").length;
   const totalMineralsCount = state.minerals.length;
@@ -105,6 +105,15 @@ export function Dashboard({ onViewChange, onOpenOrder, onOpenTransaction, onOpen
       icon: FileText,
       color: "text-sky-600 bg-sky-50 dark:bg-sky-900/20",
       view: "sell-minerals" as const
+    },
+    {
+      title: "Need support",
+      value: String(openEnquiriesCount),
+      change: openEnquiriesCount > 0 ? (callbackRequestsCount > 0 ? `${callbackRequestsCount} callback(s)` : "open ticket(s)") : "—",
+      trend: openEnquiriesCount > 0 ? ("up" as const) : ("down" as const),
+      icon: HelpCircle,
+      color: openEnquiriesCount > 0 ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20" : "text-slate-600 bg-slate-50 dark:bg-slate-900/20",
+      view: "enquiries" as const
     }
   ];
 
@@ -145,6 +154,15 @@ export function Dashboard({ onViewChange, onOpenOrder, onOpenTransaction, onOpen
     ...(hasFailedTx
       ? [{ id: 2, title: "Payment Settlement Failed", description: "One or more transactions failed processing", severity: "critical" as const, view: "finance" as const }]
       : []),
+    openEnquiriesCount > 0 && {
+      id: 22,
+      title: "Need help or support",
+      description: callbackRequestsCount > 0
+        ? `${openEnquiriesCount} open enquiry(s) – ${callbackRequestsCount} callback request(s) from app`
+        : `${openEnquiriesCount} open enquiry(s) – transactions or orders may need support`,
+      severity: "high" as const,
+      view: "enquiries" as const
+    },
     Number(pendingOrders) > 0 && {
       id: 3,
       title: "Pending Orders",

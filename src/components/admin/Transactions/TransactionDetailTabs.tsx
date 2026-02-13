@@ -1,29 +1,42 @@
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { BuyFlowPanel } from "./BuyFlowPanel";
 import { SellFlowPanel } from "./SellFlowPanel";
+import { SellFlowDetail } from "./SellFlowDetail";
 import { LCManager } from "./LCManager";
 import { TestingPanel } from "./TestingPanel";
 import { LogisticsTracker } from "./LogisticsTracker";
+import { BankDetailsCard } from "./BankDetailsCard";
+import { SendToUserCard } from "./SendToUserCard";
 import { getLogisticsDetailsForOrder } from "../../../store/dashboardStore";
 import type { Order, DashboardState, DashboardAction } from "../../../store/dashboardStore";
 import type { TransactionRow } from "./TransactionsTable";
+import { FlaskConical, Truck, QrCode } from "lucide-react";
 
 export function TransactionDetailTabs({
   row,
   state,
   dispatch,
+  defaultTab = "overview",
   onNotifyBuyer,
   onPushNotification,
 }: {
   row: TransactionRow;
   state: DashboardState;
   dispatch: React.Dispatch<DashboardAction>;
+  /** Open this tab by default (e.g. "sendToUser" when user clicked QR in table). */
+  defaultTab?: "overview" | "sendToUser" | "payment" | "buy" | "sell" | "lc" | "testing" | "logistics";
   onNotifyBuyer?: () => void;
   onPushNotification?: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<string>(defaultTab);
   const order = row.order;
   const logistics = getLogisticsDetailsForOrder(state, order.id);
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab, row.id]);
 
   const assignTesting = (lab: string, resultSummary?: string) => {
     dispatch({
@@ -40,14 +53,27 @@ export function TransactionDetailTabs({
   };
 
   return (
-    <Tabs defaultValue="overview" className="w-full">
-      <TabsList className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <TabsList className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex-wrap h-auto gap-1 p-1">
         <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="sendToUser" className="gap-1.5">
+          <QrCode className="h-4 w-4" />
+          Send QR / link
+        </TabsTrigger>
+        <TabsTrigger value="payment">Payment & bank</TabsTrigger>
         <TabsTrigger value="buy">Buy Flow</TabsTrigger>
         <TabsTrigger value="sell">Sell Flow</TabsTrigger>
         <TabsTrigger value="lc">LC & Banking</TabsTrigger>
-        <TabsTrigger value="testing">Testing</TabsTrigger>
-        <TabsTrigger value="logistics">Logistics</TabsTrigger>
+        {order.type === "Sell" && (
+          <TabsTrigger value="testing" className="gap-1.5">
+            <FlaskConical className="h-4 w-4" />
+            Testing
+          </TabsTrigger>
+        )}
+        <TabsTrigger value="logistics" className="gap-1.5">
+          <Truck className="h-4 w-4" />
+          Logistics
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="overview" className="mt-4">
@@ -61,16 +87,35 @@ export function TransactionDetailTabs({
             <p><span className="text-muted-foreground">Status:</span> {row.status}</p>
             <p><span className="text-muted-foreground">Value:</span> {row.value}</p>
             <p><span className="text-muted-foreground">LC#:</span> {row.lc}</p>
-            <p><span className="text-muted-foreground">Testing:</span> {row.testing}</p>
-            <p><span className="text-muted-foreground">Logistics:</span> {row.logistics}</p>
+            <p><span className="text-muted-foreground">Testing:</span> {order.type === "Sell" ? `${row.testing} — use Testing tab for lab assignment` : "N/A (Buy orders)"}</p>
+            <p><span className="text-muted-foreground">Logistics:</span> {row.logistics} — use <strong>Logistics</strong> tab for tracking details</p>
           </CardContent>
         </Card>
+      </TabsContent>
+
+      <TabsContent value="sendToUser" className="mt-4">
+        <SendToUserCard
+          order={order}
+          dispatch={dispatch}
+          showQRGenerator={true}
+          transactionId={row.id}
+          onOpenLogistics={() => setActiveTab("logistics")}
+        />
+      </TabsContent>
+
+      <TabsContent value="payment" className="mt-4">
+        <BankDetailsCard
+          state={state}
+          dispatch={dispatch}
+          preselectedTransactionId={state.transactions.find((t) => t.orderId === row.id)?.id ?? null}
+        />
       </TabsContent>
 
       <TabsContent value="buy" className="mt-4">
         {order.type === "Buy" ? (
           <BuyFlowPanel
             order={order}
+            dispatch={dispatch}
             onNotifyBuyer={onNotifyBuyer}
             onPushNotification={onPushNotification}
           />
@@ -81,7 +126,13 @@ export function TransactionDetailTabs({
 
       <TabsContent value="sell" className="mt-4">
         {order.type === "Sell" ? (
-          <SellFlowPanel order={order} onAssignTesting={assignTesting} onIssueLC={issueLC} />
+          <SellFlowDetail
+            order={order}
+            state={state}
+            dispatch={dispatch}
+            onAssignTesting={assignTesting}
+            onIssueLC={issueLC}
+          />
         ) : (
           <p className="text-muted-foreground">This is a Buy order. Use Buy Flow tab.</p>
         )}
@@ -95,17 +146,19 @@ export function TransactionDetailTabs({
         />
       </TabsContent>
 
-      <TabsContent value="testing" className="mt-4">
-        <TestingPanel
-          order={order}
-          labs={[
-            { value: "sgs-mumbai", label: "SGS Mumbai" },
-            { value: "sgs-chennai", label: "SGS Chennai" },
-            { value: "bureau-veritas", label: "Bureau Veritas" },
-          ]}
-          onAssign={assignTesting}
-        />
-      </TabsContent>
+      {order.type === "Sell" && (
+        <TabsContent value="testing" className="mt-4">
+          <TestingPanel
+            order={order}
+            labs={[
+              { value: "sgs-mumbai", label: "SGS Mumbai" },
+              { value: "sgs-chennai", label: "SGS Chennai" },
+              { value: "bureau-veritas", label: "Bureau Veritas" },
+            ]}
+            onAssign={assignTesting}
+          />
+        </TabsContent>
+      )}
 
       <TabsContent value="logistics" className="mt-4">
         {logistics ? (
