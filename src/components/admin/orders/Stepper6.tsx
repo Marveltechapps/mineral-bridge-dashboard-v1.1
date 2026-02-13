@@ -19,8 +19,11 @@ export function Stepper6({ activeStep, onStepChange }: Stepper6Props) {
     <Card className="border-2 border-[#A855F7]/30 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
       <CardHeader className="pb-2">
         <CardTitle className="text-xl font-bold text-[#A855F7] flex items-center gap-2">
-          📊 Transaction Pipeline (Step {Math.min(activeStep, 6)}/6)
+          📊 6-step pipeline (Step {Math.min(activeStep, 6)}/6)
         </CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          Step 1–2–3 = Your job (Send QR, Call Buyer, Reserve $). Step 4–5 = Auto (Testing, LC). Step 6 = Your job (Release).
+        </p>
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2">

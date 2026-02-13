@@ -36,7 +36,7 @@ export function SettlementsTab({
           Pending Settlements ({pendingSettlements.length})
         </CardTitle>
         <CardDescription className="text-muted-foreground">
-          Escrow and payments awaiting release. Release Payment completes the settlement.
+          Each row = money safe, ready to send to seller. Click &quot;Release Payment&quot; to complete the settlement and mark the order done.
         </CardDescription>
       </CardHeader>
       <CardContent>

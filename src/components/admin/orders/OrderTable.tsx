@@ -63,16 +63,16 @@ export function OrderTable({
       <CardHeader className="pb-3">
         <div className="flex flex-col sm:flex-row justify-between gap-4 flex-wrap">
           <div>
-            <CardTitle className="text-base">{use6StepFlow ? "All Orders (Complete in 6 steps 👇)" : "All orders"}</CardTitle>
+            <CardTitle className="text-base">{use6StepFlow ? "All Orders" : "All orders"}</CardTitle>
             <CardDescription className="text-muted-foreground">
-              {use6StepFlow ? "Complete your orders in 6 simple steps." : "Unified order pipeline. Orders managed in Buy/Sell Management."}
+              {use6StepFlow ? "Each row = 1 customer order waiting for you. Click Send QR first, then Call Buyer, then Reserve $. View Order for full detail." : "Unified order pipeline. Orders managed in Buy/Sell Management."}
             </CardDescription>
           </div>
           <div className="flex gap-2 items-center flex-wrap">
             <div className="relative w-full sm:w-80">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by Order ID, mineral, or facility..."
+                placeholder="Search Order ID, mineral, or buyer..."
                 className="pl-9"
                 value={searchTerm}
                 onChange={(e) => onSearchChange(e.target.value)}
@@ -210,7 +210,7 @@ export function OrderTable({
                         </Button>
                         {onOpenFullOrderDetail && (
                           <Button variant="ghost" size="sm" className="text-[#A855F7]" onClick={() => onOpenFullOrderDetail(order.id, order.type === "Buy" ? "buy" : "sell")}>
-                            Open in Order detail
+                            View Order
                           </Button>
                         )}
                       </div>

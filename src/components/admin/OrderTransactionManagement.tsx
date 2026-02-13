@@ -188,13 +188,27 @@ export function OrderTransactionManagement({
     [allOrders]
   );
 
+  const handleReleasePayment = (tx: Transaction) => {
+    dispatch({ type: "UPDATE_TRANSACTION", payload: { ...tx, status: "Completed" } });
+    const order = allOrders.find((o) => o.id === tx.orderId);
+    if (order) {
+      const labels = order.type === "Buy" ? [...BUY_FLOW_LABELS] : [...SELL_FLOW_LABELS];
+      const flowSteps = labels.map((label) => ({ label, completed: true, active: false }));
+      dispatch({
+        type: "UPDATE_ORDER",
+        payload: { ...order, status: "Completed", flowSteps, currentStep: 6 },
+      });
+    }
+    toast.success("Payment released", { description: `${tx.finalAmount} sent. Order ${tx.orderId} completed.` });
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Orders & Settlements</h1>
           <p className="text-muted-foreground mt-1">
-            Unified order pipeline and payment settlements. Orders managed in Buy/Sell Management.
+            Your control panel: every button works, every number updates. Send QR → Call buyer → Reserve $ → Release payment.
           </p>
         </div>
         <div className="flex gap-3">
@@ -209,7 +223,17 @@ export function OrderTransactionManagement({
         </div>
       </div>
 
-      {/* Settlement & order metrics */}
+      {/* What really happens here - non-technical intro */}
+      <Card className="border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+        <CardContent className="p-4">
+          <p className="text-sm font-medium text-slate-900 dark:text-white mb-2">Your job as admin (step by step)</p>
+          <p className="text-xs text-muted-foreground">
+            1️⃣ Customer submits order → appears in your dashboard. 2️⃣ You click &quot;Send QR&quot; → they scan and see next steps. 3️⃣ You click &quot;Call Buyer&quot; → discuss price/logistics. 4️⃣ You click &quot;Reserve $&quot; → money locked in escrow. 5️⃣ System handles testing/LC → you approve. 6️⃣ You click &quot;Release Payment&quot; in Settlements tab → deal done.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Top metrics - quick status check */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="border-slate-200 dark:border-slate-700">
           <CardContent className="p-4">
@@ -217,29 +241,33 @@ export function OrderTransactionManagement({
             <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
               ${totalSettled >= 1e6 ? (totalSettled / 1e6).toFixed(2) + "M" : totalSettled.toLocaleString("en-US", { maximumFractionDigits: 0 })}
             </h3>
+            <p className="text-[10px] text-muted-foreground mt-1">Total money in your system (safe)</p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 dark:border-slate-700">
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Pending settlements</p>
             <h3 className="text-2xl font-bold text-amber-600">{pendingCount}</h3>
+            <p className="text-[10px] text-muted-foreground mt-1">Payment ready to release</p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 dark:border-slate-700">
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Active orders</p>
             <h3 className="text-2xl font-bold text-blue-600">{activeOrdersCount}</h3>
+            <p className="text-[10px] text-muted-foreground mt-1">Orders waiting for your action</p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 dark:border-slate-700">
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Disputed orders</p>
             <h3 className="text-2xl font-bold text-red-600">{state.disputes.length}</h3>
+            <p className="text-[10px] text-muted-foreground mt-1">Problems need your attention</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* 6-step pipeline (visual) */}
+      {/* 6-step pipeline (visual progress bar) */}
       <Stepper6 activeStep={activeStep6} onStepChange={setActiveStep6} />
       <TransactionStepper />
 
@@ -247,11 +275,11 @@ export function OrderTransactionManagement({
         <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg border border-slate-200 dark:border-slate-700">
           <TabsTrigger value="orders" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-[#A855F7] dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-purple-400 gap-2">
             <Gem className="h-4 w-4" />
-            All orders
+            All Orders ({orders.length})
           </TabsTrigger>
           <TabsTrigger value="settlements" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-[#A855F7] dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-purple-400 gap-2">
             <CreditCard className="h-4 w-4" />
-            Settlements (payments)
+            Settlements ({pendingCount} pending)
           </TabsTrigger>
         </TabsList>
 
@@ -280,10 +308,7 @@ export function OrderTransactionManagement({
 
         <TabsContent value="settlements" className="mt-6 space-y-6">
           <SettlementsTab
-            onReleasePayment={(tx) => {
-              dispatch({ type: "UPDATE_TRANSACTION", payload: { ...tx, status: "Completed" } });
-              toast.success("Payment released", { description: tx.id });
-            }}
+            onReleasePayment={handleReleasePayment}
             onOpenOrderDetail={onOpenFullOrderDetail}
           />
           <Card className="border-slate-200 dark:border-slate-700">
@@ -415,6 +440,16 @@ export function OrderTransactionManagement({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Daily routine - 5 minutes */}
+      <Card className="border-slate-200 dark:border-slate-700 bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-200/50 dark:border-emerald-800/30">
+        <CardContent className="p-4">
+          <p className="text-sm font-medium text-slate-900 dark:text-white mb-2">Daily routine (about 5 minutes)</p>
+          <p className="text-xs text-muted-foreground">
+            1. Check &quot;Active orders&quot; → go to All Orders. 2. Find &quot;Awaiting Team Contact&quot; → click Send QR. 3. Find &quot;Pending settlements&quot; → click Release Payment. 4. Check &quot;Disputed&quot; → fix problems. 5. Done.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Full order details – same depth as User Management detail flow */}
       <Sheet open={!!orderForView} onOpenChange={(open) => { if (!open) setOrderForView(null); }}>
