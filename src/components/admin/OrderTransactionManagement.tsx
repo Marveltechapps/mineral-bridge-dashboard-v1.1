@@ -95,6 +95,9 @@ export function OrderTransactionManagement({ initialTransactionId, onOpenFullOrd
   const [newStatus, setNewStatus] = useState<string>("");
   const [mainTab, setMainTab] = useState<"orders" | "settlements">("orders");
   const [internationalFilter, setInternationalFilter] = useState<"all" | "domestic" | "international">("all");
+  const [statusFilterSettlement, setStatusFilterSettlement] = useState<"all" | "Pending" | "Completed" | "Failed">("all");
+  const [dateRangeFilter, setDateRangeFilter] = useState<"all" | "today" | "week" | "month">("all");
+  const [methodFilter, setMethodFilter] = useState<"all" | "Bank Transfer" | "Wise" | "Blockchain Settlement">("all");
   const allOrders = useAllOrders();
   const transactions = state.transactions;
   useEffect(() => {
@@ -126,12 +129,34 @@ export function OrderTransactionManagement({ initialTransactionId, onOpenFullOrd
   }, [allOrders, searchTerm, internationalFilter, state.registryUsers]);
 
   const filteredTransactions = useMemo(() => {
-    if (internationalFilter === "all") return transactions;
+    let list = transactions;
     if (internationalFilter === "domestic") {
-      return transactions.filter((tx) => !getTransactionIsInternational(tx, allOrders, state.registryUsers));
+      list = list.filter((tx) => !getTransactionIsInternational(tx, allOrders, state.registryUsers));
+    } else if (internationalFilter === "international") {
+      list = list.filter((tx) => getTransactionIsInternational(tx, allOrders, state.registryUsers));
     }
-    return transactions.filter((tx) => getTransactionIsInternational(tx, allOrders, state.registryUsers));
-  }, [transactions, internationalFilter, allOrders, state.registryUsers]);
+    if (statusFilterSettlement !== "all") {
+      list = list.filter((tx) => tx.status === statusFilterSettlement);
+    }
+    if (methodFilter !== "all") {
+      list = list.filter((tx) => tx.method === methodFilter);
+    }
+    if (dateRangeFilter !== "all") {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const weekStart = todayStart - 7 * 24 * 60 * 60 * 1000;
+      const monthStart = todayStart - 30 * 24 * 60 * 60 * 1000;
+      list = list.filter((tx) => {
+        const d = new Date(tx.date);
+        const t = d.getTime();
+        if (dateRangeFilter === "today") return t >= todayStart && t < todayStart + 24 * 60 * 60 * 1000;
+        if (dateRangeFilter === "week") return t >= weekStart;
+        if (dateRangeFilter === "month") return t >= monthStart;
+        return true;
+      });
+    }
+    return list;
+  }, [transactions, internationalFilter, statusFilterSettlement, dateRangeFilter, methodFilter, allOrders, state.registryUsers]);
 
   const totalSettled = transactions.filter((t) => t.status === "Completed").reduce((s, t) => s + (parseFloat(t.finalAmount.replace(/[^0-9.-]/g, "")) || 0), 0);
   const pendingCount = transactions.filter((t) => t.status === "Pending").length;
@@ -376,82 +401,128 @@ export function OrderTransactionManagement({ initialTransactionId, onOpenFullOrd
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Settlements (payments)</CardTitle>
-              <CardDescription className="text-muted-foreground">Payment and settlement records linked to orders. Filter by domestic/international.</CardDescription>
-              <div className="flex gap-2 pt-2">
+              <CardDescription className="text-muted-foreground">Payment and settlement records linked to orders. Filter by scope, status, date range, and method.</CardDescription>
+              <div className="flex flex-wrap gap-2 pt-2">
                 <Select value={internationalFilter} onValueChange={(v) => setInternationalFilter(v as "all" | "domestic" | "international")}>
                   <SelectTrigger className="w-[150px]">
                     <SelectValue placeholder="Scope" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All settlements</SelectItem>
+                    <SelectItem value="all">All scope</SelectItem>
                     <SelectItem value="domestic">Domestic only</SelectItem>
                     <SelectItem value="international">International only</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilterSettlement} onValueChange={(v) => setStatusFilterSettlement(v as "all" | "Pending" | "Completed" | "Failed")}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All status</SelectItem>
+                    <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                    <SelectItem value="Failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={dateRangeFilter} onValueChange={(v) => setDateRangeFilter(v as "all" | "today" | "week" | "month")}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Date range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All time</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="week">Last 7 days</SelectItem>
+                    <SelectItem value="month">Last 30 days</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={methodFilter} onValueChange={(v) => setMethodFilter(v as "all" | "Bank Transfer" | "Wise" | "Blockchain Settlement")}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All methods</SelectItem>
+                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="Wise">Wise</SelectItem>
+                    <SelectItem value="Blockchain Settlement">Blockchain Settlement</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Transaction ID</TableHead>
-                    <TableHead>Order ID</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Scope</TableHead>
-                    <TableHead>Mineral</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTransactions.map((tx) => {
-                    const order = allOrders.find((o) => o.id === tx.orderId);
-                    const txIntl = getTransactionIsInternational(tx, allOrders, state.registryUsers);
-                    return (
-                      <TableRow key={tx.id}>
-                        <TableCell className="font-medium text-emerald-600">{tx.id}</TableCell>
-                        <TableCell className="text-sm">{tx.orderId}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={tx.orderType === "Buy" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20" : "bg-amber-50 text-amber-700 dark:bg-amber-900/20"}>
-                            {tx.orderType}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={txIntl ? "bg-violet-50 text-violet-700 dark:bg-violet-900/20 border-violet-200" : "bg-slate-50 text-slate-600 dark:bg-slate-800"}>
-                            {txIntl ? "International" : "Domestic"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm">{tx.mineral}</TableCell>
-                        <TableCell className="font-medium">{tx.finalAmount}</TableCell>
-                        <TableCell className="text-sm">{tx.method ?? "—"}{tx.paymentChannel ? ` · ${tx.paymentChannel}` : ""}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={tx.status === "Completed" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20" : tx.status === "Pending" ? "bg-amber-50 text-amber-700 dark:bg-amber-900/20" : "bg-slate-100 text-slate-600 dark:bg-slate-800"}>
-                            {tx.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{tx.date ?? "—"}</TableCell>
-                        <TableCell className="text-right">
-                          {order && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 gap-1.5 px-3"
-                              onClick={() => setOrderForView(order)}
-                            >
-                              <Eye className="h-4 w-4" />
-                              View order
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Transaction ID</TableHead>
+                      <TableHead>Order ID</TableHead>
+                      <TableHead>Counterparty</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Scope</TableHead>
+                      <TableHead>Mineral</TableHead>
+                      <TableHead>Final amount</TableHead>
+                      <TableHead>Fee</TableHead>
+                      <TableHead>Net</TableHead>
+                      <TableHead>Currency</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Date & time</TableHead>
+                      <TableHead>Payout</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTransactions.map((tx) => {
+                      const order = allOrders.find((o) => o.id === tx.orderId);
+                      const txIntl = getTransactionIsInternational(tx, allOrders, state.registryUsers);
+                      const payout = tx.payoutId ? state.payouts?.find((p) => p.id === tx.payoutId) : null;
+                      return (
+                        <TableRow key={tx.id}>
+                          <TableCell className="font-medium text-emerald-600">{tx.id}</TableCell>
+                          <TableCell className="text-sm">{tx.orderId}</TableCell>
+                          <TableCell className="text-sm text-slate-700 dark:text-slate-300">{order ? getRegistryUserName(state.registryUsers, order.userId) : "—"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={tx.orderType === "Buy" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20" : "bg-amber-50 text-amber-700 dark:bg-amber-900/20"}>
+                              {tx.orderType}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={txIntl ? "bg-violet-50 text-violet-700 dark:bg-violet-900/20 border-violet-200" : "bg-slate-50 text-slate-600 dark:bg-slate-800"}>
+                              {txIntl ? "International" : "Domestic"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">{tx.mineral}</TableCell>
+                          <TableCell className="font-medium">{tx.finalAmount}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{tx.serviceFee ?? "—"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{tx.netAmount ?? "—"}</TableCell>
+                          <TableCell className="text-sm">{tx.currency ?? "—"}</TableCell>
+                          <TableCell className="text-sm">{tx.method ?? "—"}{tx.paymentChannel ? ` · ${tx.paymentChannel}` : ""}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={tx.status === "Completed" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20" : tx.status === "Pending" ? "bg-amber-50 text-amber-700 dark:bg-amber-900/20" : "bg-slate-100 text-slate-600 dark:bg-slate-800"}>
+                              {tx.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{tx.date ?? "—"}{tx.time ? ` ${tx.time}` : ""}</TableCell>
+                          <TableCell className="text-xs">{payout ? <span className="text-emerald-600 dark:text-emerald-400" title={payout.label}>{payout.id}</span> : "—"}</TableCell>
+                          <TableCell className="text-right">
+                            {order && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 gap-1.5 px-3"
+                                onClick={() => setOrderForView(order)}
+                              >
+                                <Eye className="h-4 w-4" />
+                                View order
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

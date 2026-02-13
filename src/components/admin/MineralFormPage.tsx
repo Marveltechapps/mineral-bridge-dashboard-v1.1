@@ -19,10 +19,13 @@ export interface MineralFormPageProps {
   onSuccess: () => void;
 }
 
+const PRODUCT_CATEGORY_ORDER = ["Precious metals", "Base metals", "Energy minerals", "Other"] as const;
+
 export function MineralFormPage({ mineralId, onBack, onSuccess }: MineralFormPageProps) {
   const { state, dispatch } = useDashboardStore();
   const mineral = mineralId ? state.minerals.find((m) => m.id === mineralId) : undefined;
   const isEdit = !!mineral;
+  const categoryOptions = [...PRODUCT_CATEGORY_ORDER, ...(state.customCategories ?? [])];
 
   const handleSubmit = (data: Omit<Mineral, "id" | "createdAt">) => {
     if (isEdit && mineral) {
@@ -80,6 +83,7 @@ export function MineralFormPage({ mineralId, onBack, onSuccess }: MineralFormPag
             initialData={mineral}
             onSubmit={handleSubmit}
             onCancel={onBack}
+            categoryOptions={categoryOptions}
           />
         </CardContent>
       </Card>

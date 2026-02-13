@@ -308,6 +308,9 @@ const StatCard = ({ label, value, sub, trend, variant = "default" }: any) => (
   </Card>
 );
 
+/** Display name for the admin performing verification (when no auth context). In production, use current user from auth. */
+const CURRENT_VERIFYING_ADMIN = "S. Miller";
+
 const TimelineItem = ({ title, source, time, icon: Icon, admin, color = "emerald" }: any) => (
   <div className="flex gap-3 relative group">
     <div className="flex flex-col items-center">
@@ -679,21 +682,23 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
 
     setCurrentKycStatus("Approved");
     if (selectedRegistryUser) {
-      const now = new Date().toISOString();
-      const result = { source: "manual" as const, lastVerifiedAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), biometricSource: biometricStatus === "overridden" ? "override" as const : "manual" as const };
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const whenDisplay = now.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) + " • " + now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      const result = { source: "manual" as const, lastVerifiedAt: whenDisplay, biometricSource: biometricStatus === "overridden" ? "override" as const : "manual" as const };
       dispatch({ type: "SET_KYC_VERIFICATION", payload: { userId: selectedRegistryUser.id, result } });
       dispatch({
         type: "RECORD_VERIFICATION",
         payload: {
           id: `ver-${Date.now()}`,
-          at: now,
+          at: nowIso,
           source: "manual",
           kind: "kyc_approval",
           entityId: selectedRegistryUser.id,
           entityType: "user",
           result: "approved",
-          label: "KYC fully approved",
-          actor: "Admin",
+          label: "KYC Verification Approved",
+          actor: CURRENT_VERIFYING_ADMIN,
           metadata: { reason: decisionReason },
         },
       });
@@ -1035,8 +1040,19 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                         {/* Pre-homepage details verification (filled before user could enter app) */}
                         {selectedRegistryUser && (
                           <Card className="border-none shadow-sm p-6">
-                            <h4 className="text-sm font-medium text-muted-foreground mb-2">Pre-homepage details</h4>
-                            <p className="text-xs text-muted-foreground mb-4">Whether this user completed the required details (e.g. Request Access) before entering the app.</p>
+                            <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+                              <h4 className="text-sm font-medium text-muted-foreground">Pre-homepage details</h4>
+                              {selectedRegistryUser.detailsVerifiedAt ? (
+                                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 text-xs shrink-0">
+                                  <CheckCircle className="w-3 h-3 mr-1 inline" /> Verified
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 text-xs shrink-0">
+                                  Verify here below
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-4">Whether this user completed the required details (e.g. Request Access) before entering the app. Review the details below and use <strong>Verify details</strong> to confirm you have checked them.</p>
                             {selectedRegistryUser.preHomepageDetails ? (
                               <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 mb-4 space-y-3">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -1067,22 +1083,23 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                             ) : (
                               <p className="text-xs text-muted-foreground mb-4">No pre-homepage submission recorded for this user. Details will appear here when they complete Request Access in the app.</p>
                             )}
-                            <div className="flex items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
                               {selectedRegistryUser.detailsVerifiedAt ? (
                                 <div className="flex items-center gap-2">
-                                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+                                  <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
                                   <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Verified on {selectedRegistryUser.detailsVerifiedAt}</span>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-2">
-                                  <AlertCircle className="w-5 h-5 text-amber-600" />
-                                  <span className="text-sm font-medium text-amber-700 dark:text-amber-400">Pending verification</span>
-                                </div>
-                              )}
-                              {selectedRegistryUser && !selectedRegistryUser.detailsVerifiedAt && (
-                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { dispatch({ type: "VERIFY_USER_DETAILS", payload: { userId: selectedRegistryUser.id, verifiedAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) } }); toast.success("Pre-homepage details verified", { description: `${selectedRegistryUser.name} marked as verified.` }); }}>
-                                  Verify details
-                                </Button>
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                                    <span className="text-sm font-medium text-amber-700 dark:text-amber-400">Pending verification — verify these details below</span>
+                                  </div>
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 shrink-0" onClick={() => { dispatch({ type: "VERIFY_USER_DETAILS", payload: { userId: selectedRegistryUser.id, verifiedAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) } }); toast.success("Pre-homepage details verified", { description: `${selectedRegistryUser.name} marked as verified.` }); }}>
+                                    <CheckCircle className="w-4 h-4 mr-1.5" />
+                                    Verify details
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </Card>
@@ -1147,12 +1164,23 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                              <CardTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
                                 <History className="w-6 h-6 text-emerald-500" /> Operational Activity History
                              </CardTitle>
+                             <p className="text-xs text-muted-foreground">Who verified and when — from verification log</p>
                           </CardHeader>
                           <CardContent className="p-8 space-y-0">
-                             <TimelineItem title="KYC Verification Approved" source="Admin Dashboard" time="Jan 28, 2026 • 14:32" icon={ShieldCheck} admin="S. Miller" />
-                             <TimelineItem title="Large Value Sell Order Created" source="Mobile App (iOS)" time="Jan 27, 2026 • 09:15" icon={Box} color="blue" />
-                             <TimelineItem title="Address Verification Uploaded" source="Mobile App (iOS)" time="Jan 25, 2026 • 18:44" icon={MapPin} color="slate" />
-                             <TimelineItem title="OTP Login Successful" source="IP: 82.12.99.1" time="Jan 25, 2026 • 08:21" icon={Smartphone} color="slate" />
+                             {(selectedRegistryUser ? getVerificationLogForEntity(state, selectedRegistryUser.id, 20) : []).length > 0 ? (
+                               (selectedRegistryUser ? getVerificationLogForEntity(state, selectedRegistryUser.id, 20) : []).map((log) => {
+                                 const timeStr = new Date(log.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) + " • " + new Date(log.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+                                 const sourceDisplay = log.source === "manual" ? "Admin Dashboard" : log.source === "ai" ? "System AI" : log.source === "api" ? "API" : log.source;
+                                 const isManual = log.source === "manual";
+                                 const icon = log.kind === "kyc_approval" ? ShieldCheck : log.kind === "face_match" ? UserCheck : ShieldCheck;
+                                 const color = isManual ? "emerald" : log.source === "ai" ? "blue" : "slate";
+                                 return (
+                                   <TimelineItem key={log.id} title={log.label} source={sourceDisplay} time={timeStr} icon={icon} admin={isManual ? log.actor : undefined} color={color} />
+                                 );
+                               })
+                             ) : (
+                               <p className="text-sm text-muted-foreground">No verification events yet. When an admin or system verifies this user (KYC approval, document check, AML scan), it will appear here with <strong>who</strong> verified and <strong>when</strong>.</p>
+                             )}
                           </CardContent>
                         </Card>
 
@@ -1160,9 +1188,20 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                            <div className="flex items-center justify-between mb-8">
                               <div className="space-y-1">
                                  <h4 className="text-lg font-bold text-slate-900 dark:text-white">Identity & KYC Summary</h4>
-                                 <p className="text-xs text-muted-foreground">Verified on Jan 28, 2026 • Admin S. Miller</p>
+                                 {(() => {
+                                   const kycResult = selectedRegistryUser ? getKycVerificationResult(state, selectedRegistryUser.id) : null;
+                                   const verificationLogForUser = selectedRegistryUser ? getVerificationLogForEntity(state, selectedRegistryUser.id, 1) : [];
+                                   const lastKycApproval = verificationLogForUser.find((e) => e.kind === "kyc_approval");
+                                   const whenStr = kycResult?.lastVerifiedAt ?? lastKycApproval ? (new Date(lastKycApproval.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) + " • " + new Date(lastKycApproval.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })) : null;
+                                   const whoStr = lastKycApproval?.actor ?? (kycResult?.source === "manual" ? CURRENT_VERIFYING_ADMIN : null);
+                                   return (
+                                     <p className="text-xs text-muted-foreground">
+                                       {whenStr && whoStr ? `Verified on ${whenStr} • Admin: ${whoStr}` : whenStr ? `Verified on ${whenStr}` : "Not yet verified — complete verification in Identity & KYC tab."}
+                                     </p>
+                                   );
+                                 })()}
                               </div>
-                              <StatusBadge status="Approved" />
+                              <StatusBadge status={currentKycStatus} />
                            </div>
                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                               {[...KYC_DOCUMENTS, BIOMETRIC_DATA].map((doc, i) => (
@@ -1460,7 +1499,15 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                         </div>
                         <div className="p-6 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-1">
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Last Reviewed By</p>
-                          <p className="text-sm font-black text-slate-900">Admin S. Miller • Jan 28</p>
+                          <p className="text-sm font-black text-slate-900">
+                            {(() => {
+                              const logs = selectedRegistryUser ? getVerificationLogForEntity(state, selectedRegistryUser.id, 1) : [];
+                              const lastManual = logs.find((e) => e.source === "manual");
+                              if (!lastManual) return "—";
+                              const d = new Date(lastManual.at);
+                              return `${lastManual.actor} • ${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+                            })()}
+                          </p>
                         </div>
                       </div>
 

@@ -12,12 +12,17 @@ import { Badge } from "../../ui/badge";
 import { Separator } from "../../ui/separator";
 import { Upload, X, Plus, Info, ChevronDown, ChevronUp, Calendar, Hash, Pencil, Check } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/collapsible";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card";
 import { format } from "date-fns";
+
+const DEFAULT_CATEGORY_OPTIONS = ["Precious metals", "Base metals", "Energy minerals", "Other"] as const;
 
 interface MineralFormProps {
   initialData?: Mineral;
   onSubmit: (data: Omit<Mineral, 'id' | 'createdAt'>) => void;
   onCancel: () => void;
+  /** Product categories from catalog (same as Mineral categories card). Defaults to Precious metals, Base metals, Energy minerals, Other. */
+  categoryOptions?: string[];
 }
 
 const VISIBLE_TO_OPTIONS = ["Buyers", "Institutions", "Artisanal"] as const;
@@ -40,7 +45,7 @@ const SECTION_TITLES = {
   status: "12. Verification Status"
 };
 
-export function MineralForm({ initialData, onSubmit, onCancel }: MineralFormProps) {
+export function MineralForm({ initialData, onSubmit, onCancel, categoryOptions = [...DEFAULT_CATEGORY_OPTIONS] }: MineralFormProps) {
   const { register, control, handleSubmit, watch, setValue, formState: { errors } } = useForm<Omit<Mineral, 'id' | 'createdAt'>>({
     defaultValues: initialData || initialMineralState
   });
@@ -265,6 +270,35 @@ export function MineralForm({ initialData, onSubmit, onCancel }: MineralFormProp
       
       <div className="flex-1 min-h-[400px] overflow-y-auto px-6">
         <div className="space-y-6 py-6">
+
+          {/* Product category – same options as Mineral categories in catalog */}
+          <Card className="border-none shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Product category</CardTitle>
+              <CardDescription className="text-xs">Select the catalog category for this mineral (Precious metals, Base metals, Energy minerals, Other, or a custom category).</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Controller
+                name="category"
+                control={control}
+                render={({ field }) => (
+                  <div className="grid gap-2">
+                    <Label htmlFor="category">Category</Label>
+                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                      <SelectTrigger id="category" className="w-full max-w-sm">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categoryOptions.map((opt) => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+            </CardContent>
+          </Card>
           
           {/* 1. Mineral Name */}
           <Section title={SECTION_TITLES.basic} isOpen={openSections.basic} onToggle={() => toggleSection('basic')}>

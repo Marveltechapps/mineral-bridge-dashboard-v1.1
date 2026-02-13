@@ -6,10 +6,6 @@ import {
   Plus,
   Eye,
   Trash2,
-  ChevronsLeft,
-  ChevronsRight,
-  ChevronLeft,
-  ChevronRight,
   CheckCircle2,
   FileText,
   Truck,
@@ -74,10 +70,8 @@ export function SellMineralManagement({ onOpenOrderDetail, onOpenSubmissionDetai
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [submissionToDelete, setSubmissionToDelete] = useState<MineralSubmission | null>(null);
   const [orderScopeFilter, setOrderScopeFilter] = useState<"all" | "domestic" | "international">("all");
-  
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const customSellCategories = state.customSellCategories ?? [];
+  const [newSellCategoryInput, setNewSellCategoryInput] = useState("");
 
   const filteredSellOrders = useMemo(() => {
     let list = sellOrders;
@@ -108,19 +102,40 @@ export function SellMineralManagement({ onOpenOrderDetail, onOpenSubmissionDetai
   const clearFilters = () => setStatusFilter([]);
   const activeFiltersCount = statusFilter.length;
 
-  const totalItems = filteredSubmissions.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const paginatedSubmissions = filteredSubmissions.slice(startIndex, endIndex);
+  // Group by category for sell list (from app). Order: Raw, Semi-Processed, Processed, custom; hide Other.
+  const SELL_CATEGORY_ORDER = ["Raw", "Semi-Processed", "Processed", "Other"] as const;
+  const sellCategoryOrderWithCustom = useMemo(
+    () => [...SELL_CATEGORY_ORDER, ...customSellCategories],
+    [customSellCategories]
+  );
+  const submissionsByCategory = useMemo(() => {
+    const map = new Map<string, MineralSubmission[]>();
+    filteredSubmissions.forEach((s) => {
+      const cat = (s.mineralCategory && s.mineralCategory.trim()) ? s.mineralCategory : "Other";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(s);
+    });
+    const ordered: { category: string; submissions: MineralSubmission[] }[] = [];
+    sellCategoryOrderWithCustom.forEach((cat) => {
+      const list = map.get(cat) ?? [];
+      ordered.push({ category: cat, submissions: list });
+    });
+    map.forEach((list, cat) => {
+      if (!sellCategoryOrderWithCustom.includes(cat)) ordered.push({ category: cat, submissions: list });
+    });
+    return ordered;
+  }, [filteredSubmissions, sellCategoryOrderWithCustom]);
+
+  const handleAddSellCategory = () => {
+    const name = newSellCategoryInput.trim();
+    if (!name) return;
+    if ([...SELL_CATEGORY_ORDER, ...customSellCategories].includes(name)) return;
+    dispatch({ type: "ADD_CUSTOM_SELL_CATEGORY", payload: name });
+    setNewSellCategoryInput("");
+  };
 
   const handleViewDetails = (id: string) => {
     onOpenSubmissionDetail?.(id);
-  };
-
-  const goToPage = (page: number) => {
-    const p = Math.max(1, Math.min(page, totalPages));
-    setCurrentPage(p);
   };
 
   const handleDeleteSubmission = () => {
@@ -216,213 +231,235 @@ export function SellMineralManagement({ onOpenOrderDetail, onOpenSubmissionDetai
         </Card>
       </div>
 
-      <Card className="border-none shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row justify-between gap-4">
-            <div className="relative w-full sm:w-96">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search submission ID, seller..."
-                className="pl-9"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={`gap-2 ${activeFiltersCount > 0 ? "bg-slate-100 dark:bg-slate-800" : ""}`}>
-                    <Filter className="w-4 h-4" />
-                    Filter
-                    {activeFiltersCount > 0 && (
-                      <Badge variant="secondary" className="h-5 px-1.5 ml-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                        {activeFiltersCount}
-                      </Badge>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-72 p-4" align="end">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium leading-none">Filters</h4>
-                      <Button variant="ghost" size="sm" className="h-auto p-0 text-xs text-muted-foreground" onClick={clearFilters}>
-                        Clear all
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      <h5 className="text-sm font-medium text-muted-foreground">Status</h5>
-                      <div className="flex flex-wrap gap-2">
-                        {["Submitted", "In Review", "Approved", "Rejected", "Sold", "Settled"].map((status) => (
-                          <Badge
-                            key={status}
-                            variant={statusFilter.includes(status) ? "default" : "outline"}
-                            className="cursor-pointer"
-                            onClick={() =>
-                              setStatusFilter((prev) =>
-                                prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
-                              )
-                            }
-                          >
-                            {status}
-                          </Badge>
-                        ))}
-                      </div>
+      <Card className="border-none shadow-sm mb-6">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Sell categories</CardTitle>
+          <CardDescription className="text-xs">Raw, Semi-Processed, Processed, and any you add. Create a new category below to use when adding or editing submissions.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              placeholder="New category name"
+              className="max-w-[220px] h-9"
+              value={newSellCategoryInput}
+              onChange={(e) => setNewSellCategoryInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddSellCategory())}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-9 gap-1.5"
+              onClick={handleAddSellCategory}
+              disabled={!newSellCategoryInput.trim()}
+            >
+              <Plus className="w-4 h-4" />
+              Create category
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">List of submissions</h2>
+        <p className="text-sm text-muted-foreground mb-4">Sell submissions from the app, grouped by category (Raw, Semi-Processed, Processed).</p>
+        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4">
+          <div className="relative w-full sm:w-96">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search submission ID, seller..."
+              className="pl-9"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={`gap-2 ${activeFiltersCount > 0 ? "bg-slate-100 dark:bg-slate-800" : ""}`}>
+                  <Filter className="w-4 h-4" />
+                  Filter
+                  {activeFiltersCount > 0 && (
+                    <Badge variant="secondary" className="h-5 px-1.5 ml-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                      {activeFiltersCount}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-4" align="end">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium leading-none">Filters</h4>
+                    <Button variant="ghost" size="sm" className="h-auto p-0 text-xs text-muted-foreground" onClick={clearFilters}>
+                      Clear all
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <h5 className="text-sm font-medium text-muted-foreground">Status</h5>
+                    <div className="flex flex-wrap gap-2">
+                      {["Submitted", "In Review", "Approved", "Rejected", "Sold", "Settled"].map((status) => (
+                        <Badge
+                          key={status}
+                          variant={statusFilter.includes(status) ? "default" : "outline"}
+                          className="cursor-pointer"
+                          onClick={() =>
+                            setStatusFilter((prev) =>
+                              prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+                            )
+                          }
+                        >
+                          {status}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
-                </PopoverContent>
-              </Popover>
-              <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => {
-                  const newSub: MineralSubmission = {
-                    id: `MIN-SUB-${new Date().getFullYear()}-${String(submissions.length + 1).padStart(3, "0")}`,
-                    sellerId: "NEW",
-                    sellerName: "New Seller",
-                    sellerCompany: "New Company",
-                    mineralName: "",
-                    mineralCategory: "Raw",
-                    mineralDescription: "",
-                    mineralType: "Gold",
-                    form: "Bar",
-                    quantity: 0,
-                    unit: "grams",
-                    extractionYear: new Date().getFullYear(),
-                    location: { city: "", region: "", country: "" },
-                    photos: [],
-                    status: "Submitted",
-                    aiConfidenceScore: 0,
-                    reviewerNotes: "",
-                    blockchainProofEnabled: false,
-                    sgsStatus: "Not Sent",
-                    grossOfferValue: 0,
-                    platformFeePercent: 2.5,
-                    logisticsCost: 0,
-                    currency: "USD",
-                    settlementType: "Standard",
-                    escrowStatus: "Pending",
-                    paymentMode: "Bank Settlement",
-                    auditLog: [],
-                    createdAt: new Date(),
-                  };
-                  dispatch({ type: "ADD_MINERAL_SUBMISSION", payload: newSub });
-                  onOpenSubmissionDetail?.(newSub.id);
-                }}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add submission
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Submission ID</TableHead>
-                <TableHead>Submitted Date</TableHead>
-                <TableHead>Seller Details</TableHead>
-                <TableHead>Mineral</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>AI Confidence</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedSubmissions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center">
-                    No submissions found matching your filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedSubmissions.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                    onClick={() => handleViewDetails(item.id)}
-                  >
-                    <TableCell className="font-mono text-xs font-medium">{item.id}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{format(item.createdAt, "MMM dd, yyyy")}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-sm">{item.sellerName}</span>
-                        <span className="text-xs text-muted-foreground">{item.sellerCompany}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{item.mineralName || item.mineralType}</span>
-                      <span className="text-xs text-muted-foreground block">{item.mineralCategory ? `${item.mineralCategory} · ` : ""}{item.quantity} {item.unit} • {item.form}</span>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {item.location.city}, {item.location.country}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className={`font-normal ${getStatusColor(item.status)}`}>
-                        {item.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${item.aiConfidenceScore > 80 ? "bg-emerald-500" : item.aiConfidenceScore > 50 ? "bg-amber-500" : "bg-red-500"}`}
-                            style={{ width: `${item.aiConfidenceScore}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-medium">{item.aiConfidenceScore}%</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleViewDetails(item.id)}>
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"
-                            onClick={() => setSubmissionToDelete(item)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete Submission
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-        <CardFooter className="flex items-center justify-between border-t p-4">
-          <div className="text-sm text-muted-foreground">
-            Showing <span className="font-medium">{filteredSubmissions.length > 0 ? startIndex + 1 : 0}</span> to{" "}
-            <span className="font-medium">{endIndex}</span> of <span className="font-medium">{totalItems}</span> entries
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToPage(1)} disabled={currentPage === 1}>
-              <ChevronsLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm font-medium">Page {currentPage} of {totalPages || 1}</span>
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToPage(currentPage + 1)} disabled={currentPage >= totalPages}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToPage(totalPages)} disabled={currentPage >= totalPages}>
-              <ChevronsRight className="h-4 w-4" />
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => {
+                const newSub: MineralSubmission = {
+                  id: `MIN-SUB-${new Date().getFullYear()}-${String(submissions.length + 1).padStart(3, "0")}`,
+                  sellerId: "NEW",
+                  sellerName: "New Seller",
+                  sellerCompany: "New Company",
+                  mineralName: "",
+                  mineralCategory: "Raw",
+                  mineralDescription: "",
+                  mineralType: "Gold",
+                  form: "Bar",
+                  quantity: 0,
+                  unit: "grams",
+                  extractionYear: new Date().getFullYear(),
+                  location: { city: "", region: "", country: "" },
+                  photos: [],
+                  status: "Submitted",
+                  aiConfidenceScore: 0,
+                  reviewerNotes: "",
+                  blockchainProofEnabled: false,
+                  sgsStatus: "Not Sent",
+                  grossOfferValue: 0,
+                  platformFeePercent: 2.5,
+                  logisticsCost: 0,
+                  currency: "USD",
+                  settlementType: "Standard",
+                  escrowStatus: "Pending",
+                  paymentMode: "Bank Settlement",
+                  auditLog: [],
+                  createdAt: new Date(),
+                };
+                dispatch({ type: "ADD_MINERAL_SUBMISSION", payload: newSub });
+                onOpenSubmissionDetail?.(newSub.id);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add submission
             </Button>
           </div>
-        </CardFooter>
-      </Card>
+        </div>
+
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-6 mb-3">By category</h3>
+        {submissionsByCategory.filter(({ category }) => category !== "Other").length === 0 ? (
+          <Card className="border-none shadow-sm">
+            <CardContent className="py-12 text-center">
+              <p className="text-sm text-muted-foreground">No submissions found matching your filters.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            {submissionsByCategory
+              .filter(({ category }) => category !== "Other")
+              .map(({ category, submissions: categorySubmissions }) => (
+              <Card key={category} className="border-none shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">{category}</CardTitle>
+                  <CardDescription className="text-xs">{categorySubmissions.length} submission{categorySubmissions.length !== 1 ? "s" : ""} in this category</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Submission ID</TableHead>
+                        <TableHead>Submitted Date</TableHead>
+                        <TableHead>Seller Details</TableHead>
+                        <TableHead>Mineral</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>AI Confidence</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {categorySubmissions.map((item) => (
+                        <TableRow
+                          key={item.id}
+                          className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                          onClick={() => handleViewDetails(item.id)}
+                        >
+                          <TableCell className="font-mono text-xs font-medium">{item.id}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{format(item.createdAt, "MMM dd, yyyy")}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm">{item.sellerName}</span>
+                              <span className="text-xs text-muted-foreground">{item.sellerCompany}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-medium">{item.mineralName || item.mineralType}</span>
+                            <span className="text-xs text-muted-foreground block">{item.mineralCategory ? `${item.mineralCategory} · ` : ""}{item.quantity} {item.unit} • {item.form}</span>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {item.location.city}, {item.location.country}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className={`font-normal ${getStatusColor(item.status)}`}>
+                              {item.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full ${item.aiConfidenceScore > 80 ? "bg-emerald-500" : item.aiConfidenceScore > 50 ? "bg-amber-500" : "bg-red-500"}`}
+                                  style={{ width: `${item.aiConfidenceScore}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium">{item.aiConfidenceScore}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewDetails(item.id)}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"
+                                  onClick={() => setSubmissionToDelete(item)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete Submission
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
         </TabsContent>
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { 
   Search, 
   Filter, 
@@ -109,6 +109,8 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const [priceRange, setPriceRange] = useState<{ min: string, max: string }>({ min: "", max: "" });
   const [orderScopeFilter, setOrderScopeFilter] = useState<"all" | "domestic" | "international">("all");
+  const customCategories = state.customCategories ?? [];
+  const [newCategoryInput, setNewCategoryInput] = useState("");
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -179,6 +181,38 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
     setCurrentPage(p);
   };
 
+  // Group by category for buy list (from app). Order: Precious metals, Base metals, Energy minerals, Other, then custom.
+  const CATEGORY_ORDER = ["Precious metals", "Base metals", "Energy minerals", "Other"] as const;
+  const categoryOrderWithCustom = useMemo(
+    () => [...CATEGORY_ORDER, ...customCategories],
+    [customCategories]
+  );
+  const mineralsByCategory = useMemo(() => {
+    const map = new Map<string, Mineral[]>();
+    filteredMinerals.forEach((m) => {
+      const cat = m.category && m.category.trim() ? m.category : "Other";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(m);
+    });
+    const ordered: { category: string; minerals: Mineral[] }[] = [];
+    categoryOrderWithCustom.forEach((cat) => {
+      const list = map.get(cat) ?? [];
+      ordered.push({ category: cat, minerals: list });
+    });
+    map.forEach((list, cat) => {
+      if (!categoryOrderWithCustom.includes(cat)) ordered.push({ category: cat, minerals: list });
+    });
+    return ordered;
+  }, [filteredMinerals, categoryOrderWithCustom]);
+
+  const handleAddCategory = () => {
+    const name = newCategoryInput.trim();
+    if (!name) return;
+    if ([...CATEGORY_ORDER, ...customCategories].includes(name)) return;
+    dispatch({ type: "ADD_CUSTOM_CATEGORY", payload: name });
+    setNewCategoryInput("");
+  };
+
   // Pending Approvals specific logic
   const pendingMinerals = minerals.filter(m => m.verificationStatus === 'Pending');
 
@@ -205,19 +239,6 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
             <span className="font-medium text-emerald-600">{minerals.length}</span> mineral(s) in catalog · <span className="font-medium text-emerald-600">{buyOrders.length}</span> buy order(s) from <span className="font-medium text-emerald-600">{new Set(buyOrders.map((o) => o.userId).filter(Boolean)).size}</span> user(s)
           </p>
         </div>
-        
-        <Button
-          type="button"
-          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onOpenMineralForm?.();
-          }}
-        >
-          <Plus className="w-4 h-4" />
-          Add New Mineral
-        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "from-app" | "orders")} className="w-full">
@@ -280,32 +301,51 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
           </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="catalog" className="mt-4">
-          <Card className="border-none shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col sm:flex-row justify-between gap-4">
-                <div className="relative w-full sm:w-96">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search minerals..."
-                    className="pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={`gap-2 ${activeFiltersCount > 0 ? 'bg-slate-100 dark:bg-slate-800' : ''}`}>
-                        <Filter className="w-4 h-4" />
-                        Filter
-                        {activeFiltersCount > 0 && (
-                          <Badge variant="secondary" className="h-5 px-1.5 ml-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                            {activeFiltersCount}
-                          </Badge>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
+        <TabsContent value="catalog" className="mt-4 space-y-8">
+          {/* Add New Mineral - at top */}
+          <div className="pb-6 border-b border-slate-200 dark:border-slate-700">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Add New Mineral</h3>
+            <p className="text-sm text-muted-foreground mb-4">Add a new mineral to the buy list from the app. It will appear under the appropriate category once saved.</p>
+            <Button
+              type="button"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onOpenMineralForm?.();
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              Add New Mineral
+            </Button>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">List of minerals</h2>
+            <p className="text-sm text-muted-foreground mb-4">Minerals from the app buy list, grouped by category. Precious metals, base metals, energy minerals.</p>
+            <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4">
+              <div className="relative w-full sm:w-96">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search minerals..."
+                  className="pl-9"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={`gap-2 ${activeFiltersCount > 0 ? 'bg-slate-100 dark:bg-slate-800' : ''}`}>
+                      <Filter className="w-4 h-4" />
+                      Filter
+                      {activeFiltersCount > 0 && (
+                        <Badge variant="secondary" className="h-5 px-1.5 ml-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          {activeFiltersCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
                     <PopoverContent className="w-80 p-4" align="end">
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -417,30 +457,82 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
                   </Popover>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Created Date</TableHead>
-                    <TableHead>Mineral Name</TableHead>
-                    <TableHead>Tags</TableHead>
-                    <TableHead>Market Price</TableHead>
-                    <TableHead>Origin</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedMinerals.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center">
-                        No minerals found matching your filters.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    paginatedMinerals.map((mineral) => (
+
+            <Card className="mt-6 mb-4 border-none shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Mineral categories</CardTitle>
+                <CardDescription className="text-xs">Precious metals, Base metals, Energy minerals, Other, and any you add. Create a new category below to use when adding minerals.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {mineralsByCategory.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {mineralsByCategory
+                      .filter(({ category }) => category !== "Other")
+                      .map(({ category }) => (
+                        <span
+                          key={category}
+                          className="inline-flex items-center rounded-md bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-sm font-semibold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700"
+                        >
+                          {category}
+                        </span>
+                      ))}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <Input
+                    placeholder="New category name"
+                    className="max-w-[220px] h-9"
+                    value={newCategoryInput}
+                    onChange={(e) => setNewCategoryInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddCategory())}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-9 gap-1.5"
+                    onClick={handleAddCategory}
+                    disabled={!newCategoryInput.trim()}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create category
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-6 mb-3">By category</h3>
+            {mineralsByCategory.length === 0 ? (
+              <Card className="border-none shadow-sm">
+                <CardContent className="py-12 text-center">
+                  <p className="text-sm text-muted-foreground">No minerals found matching your filters.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+              {mineralsByCategory
+                .filter(({ category }) => category !== "Other")
+                .map(({ category, minerals: categoryMinerals }) => (
+                <Card key={category} className="border-none shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">{category}</CardTitle>
+                    <CardDescription className="text-xs">{categoryMinerals.length} mineral{categoryMinerals.length !== 1 ? "s" : ""} in this category</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          <TableHead>Created Date</TableHead>
+                          <TableHead>Mineral Name</TableHead>
+                          <TableHead>Tags</TableHead>
+                          <TableHead>Market Price</TableHead>
+                          <TableHead>Origin</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {categoryMinerals.map((mineral) => (
                       <TableRow
                         key={mineral.id}
                         className={onOpenMineralDetail ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" : undefined}
@@ -509,58 +601,15 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
                           </DropdownMenu>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-            <CardFooter className="flex items-center justify-between border-t p-4">
-              <div className="text-sm text-muted-foreground">
-                Showing <span className="font-medium">{filteredMinerals.length > 0 ? startIndex + 1 : 0}</span> to <span className="font-medium">{endIndex}</span> of <span className="font-medium">{totalItems}</span> entries
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              ))}
               </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => goToPage(1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => goToPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-medium">
-                  Page {currentPage} of {totalPages || 1}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => goToPage(currentPage + 1)}
-                  disabled={currentPage === totalPages || totalPages === 0}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => goToPage(totalPages)}
-                  disabled={currentPage === totalPages || totalPages === 0}
-                >
-                  <ChevronsRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardFooter>
-          </Card>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="approvals" className="mt-4">

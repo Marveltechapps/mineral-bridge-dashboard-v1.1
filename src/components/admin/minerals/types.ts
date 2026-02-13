@@ -15,6 +15,8 @@ export interface Mineral {
   /** Mineral types (e.g. Lithium, Cobalt). Add, edit, or delete per listing. */
   mineralTypes: string[];
   badges: string[];
+  /** Category for buy list grouping (e.g. Precious metals, Base metals, Energy minerals). */
+  category?: string;
   
   // 4. Origin Details
   country: string;
@@ -90,5 +92,6 @@ export const initialMineralState: Omit<Mineral, 'id' | 'createdAt'> = {
   visibleTo: ["Buyers", "Institutions"],
   institutionalBuyerCategories: [],
   ctaEnabled: true,
-  ctaLabel: "Proceed to Allocation"
+  ctaLabel: "Proceed to Allocation",
+  category: ""
 };

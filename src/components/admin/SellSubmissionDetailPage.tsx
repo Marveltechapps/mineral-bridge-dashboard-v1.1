@@ -40,6 +40,7 @@ import type { MineralSubmission } from "../../types/sellSubmissions";
 const UNIT_OPTIONS = ["grams", "kg", "MT"] as const;
 const CURRENCY_OPTIONS = ["USD", "EUR", "GBP"] as const;
 const AUDIT_ACTORS = ["System", "Admin", "Seller"] as const;
+const SELL_CATEGORY_ORDER = ["Raw", "Semi-Processed", "Processed"] as const;
 
 export interface SellSubmissionDetailPageProps {
   submissionId: string;
@@ -70,6 +71,12 @@ export function SellSubmissionDetailPage({ submissionId, onBack }: SellSubmissio
     [state.mineralSubmissions, submissionId]
   );
   const catalogMinerals = state.minerals;
+  const sellCategoryOptions = useMemo(() => {
+    const base = [...SELL_CATEGORY_ORDER, ...(state.customSellCategories ?? [])];
+    const current = submission?.mineralCategory?.trim();
+    if (current && !base.includes(current)) return [current, ...base];
+    return base;
+  }, [state.customSellCategories, submission?.mineralCategory]);
   const [newPhotoUrl, setNewPhotoUrl] = useState("");
   const [newAuditAction, setNewAuditAction] = useState("");
   const [newAuditActor, setNewAuditActor] = useState<"System" | "Admin" | "Seller">("Admin");
@@ -270,11 +277,19 @@ export function SellSubmissionDetailPage({ submissionId, onBack }: SellSubmissio
                 </div>
                 <div className="col-span-2 sm:col-span-1 space-y-2">
                   <Label className="text-xs text-muted-foreground uppercase tracking-wider">Mineral category</Label>
-                  <Input
+                  <Select
                     value={selectedSubmission.mineralCategory ?? ""}
-                    onChange={(e) => handleUpdateSubmission({ mineralCategory: e.target.value })}
-                    placeholder="e.g. Raw, Semi-Processed, Processed, Battery Grade"
-                  />
+                    onValueChange={(value) => handleUpdateSubmission({ mineralCategory: value })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select category (Raw, Semi-Processed, Processed…)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sellCategoryOptions.map((opt) => (
+                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="col-span-2 space-y-2">
                   <Label className="text-xs text-muted-foreground uppercase tracking-wider">Mineral description</Label>

@@ -212,6 +212,19 @@ export interface Transaction {
   sanctionsResult?: "Clear" | "Flagged";
   /** Export control note or document ref. */
   exportControlNote?: string;
+  /** Optional link to settlement batch / payout for reconciliation. */
+  payoutId?: string;
+}
+
+/** Settlement batch / payout for reconciliation (match bank movements to transaction batches). */
+export interface Payout {
+  id: string;
+  label: string;
+  date: string;
+  totalAmount: string;
+  currency: string;
+  transactionCount: number;
+  status: "Settled" | "Pending match" | "Reconciled";
 }
 
 export interface Facility {
@@ -290,6 +303,8 @@ export interface DashboardState {
   buyOrders: Order[];
   sellOrders: Order[];
   transactions: Transaction[];
+  /** Settlement batches / payouts for reconciliation. */
+  payouts: Payout[];
   facilities: Facility[];
   paymentMethods: LinkedPaymentMethod[];
   suspendedUserIds: Set<string>;
@@ -304,6 +319,10 @@ export interface DashboardState {
   kycVerificationResults: Record<string, KycVerificationResult>;
   /** 3rd party logistics details keyed by order/shipment ID. Dashboard enters; app shows link + QR. */
   logisticsDetails: Record<string, LogisticsDetails>;
+  /** Custom mineral categories created in catalog (e.g. in addition to Precious metals, Base metals, Energy minerals, Other). */
+  customCategories: string[];
+  /** Custom sell submission categories (e.g. in addition to Raw, Semi-Processed, Processed). */
+  customSellCategories: string[];
 }
 
 const DEFAULT_USER_ID = "MB-USR-4412-S";
@@ -580,6 +599,7 @@ const initialTransactions: Transaction[] = [
     beneficiaryCountry: "Ghana",
     paymentChannel: "Domestic",
     isInternational: false,
+    payoutId: "PO-001",
   },
   {
     id: "TX-9912-MB",
@@ -606,7 +626,13 @@ const initialTransactions: Transaction[] = [
     isInternational: true,
     sanctionsCheckedAt: "Feb 04, 2026",
     sanctionsResult: "Clear",
+    payoutId: "PO-002",
   },
+];
+
+const initialPayouts: Payout[] = [
+  { id: "PO-001", label: "Jan 28, 2026 – Bank batch", date: "Jan 28, 2026", totalAmount: "1,118,500", currency: "USD", transactionCount: 1, status: "Reconciled" },
+  { id: "PO-002", label: "Feb 04, 2026 – Pending", date: "Feb 04, 2026", totalAmount: "724,200", currency: "USD", transactionCount: 1, status: "Pending match" },
 ];
 
 const initialFacilities: Facility[] = [
@@ -686,7 +712,9 @@ export type DashboardAction =
   | { type: "ADD_VIDEO_CALL"; payload: { userId: string; entry: VideoCallEntry } }
   | { type: "UPDATE_ARTISANAL_PROFILE_STATUS"; payload: { userId: string; status: "approved" | "rejected" } }
   | { type: "ADD_ARTISANAL_DOCUMENT_REQUEST"; payload: { userId: string; entry: import("../types/userDetails").ArtisanalDocumentRequest } }
-  | { type: "UPDATE_ARTISANAL_ASSET_REQUEST"; payload: { userId: string; requestId: string; status: "approved" | "fulfilled" | "rejected"; adminNote?: string } };
+  | { type: "UPDATE_ARTISANAL_ASSET_REQUEST"; payload: { userId: string; requestId: string; status: "approved" | "fulfilled" | "rejected"; adminNote?: string } }
+  | { type: "ADD_CUSTOM_CATEGORY"; payload: string }
+  | { type: "ADD_CUSTOM_SELL_CATEGORY"; payload: string };
 
 function dashboardReducer(state: DashboardState, action: DashboardAction): DashboardState {
   switch (action.type) {
@@ -786,6 +814,16 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
     }
     case "REMOVE_MINERAL":
       return { ...state, minerals: state.minerals.filter((x) => x.id !== action.payload) };
+    case "ADD_CUSTOM_CATEGORY": {
+      const name = (action.payload || "").trim();
+      if (!name || state.customCategories.includes(name)) return state;
+      return { ...state, customCategories: [...state.customCategories, name] };
+    }
+    case "ADD_CUSTOM_SELL_CATEGORY": {
+      const name = (action.payload || "").trim();
+      if (!name || state.customSellCategories.includes(name)) return state;
+      return { ...state, customSellCategories: [...state.customSellCategories, name] };
+    }
     case "ADD_MINERAL_SUBMISSION":
       return { ...state, mineralSubmissions: [...state.mineralSubmissions, action.payload] };
     case "UPDATE_MINERAL_SUBMISSION": {
@@ -863,6 +901,7 @@ const initialState: DashboardState = {
   buyOrders: initialBuyOrders,
   sellOrders: initialSellOrders,
   transactions: initialTransactions,
+  payouts: initialPayouts,
   facilities: initialFacilities,
   paymentMethods: initialPaymentMethods,
   suspendedUserIds: new Set(),
@@ -871,8 +910,9 @@ const initialState: DashboardState = {
   enquiries: initialEnquiries,
   userDetails: initialUserDetails,
   verificationLog: [
-    { id: "v-1", at: new Date(Date.now() - 86400000).toISOString(), source: "api", kind: "aml_scan", entityId: DEFAULT_USER_ID, entityType: "user", result: "pass", label: "Refinitiv: Pass", actor: "Refinitiv API" },
-    { id: "v-2", at: new Date(Date.now() - 43200000).toISOString(), source: "ai", kind: "face_match", entityId: DEFAULT_USER_ID, entityType: "user", result: "98", label: "Face match 98%", actor: "System AI" },
+    { id: "v-1", at: new Date(Date.now() - 86400000).toISOString(), source: "api", kind: "aml_scan", entityId: DEFAULT_USER_ID, entityType: "user", result: "pass", label: "AML Sanction Database Scan Passed", actor: "Refinitiv API" },
+    { id: "v-2", at: new Date(Date.now() - 43200000).toISOString(), source: "ai", kind: "face_match", entityId: DEFAULT_USER_ID, entityType: "user", result: "98", label: "Face Match Algorithm Verified (98%)", actor: "System AI" },
+    { id: "v-3", at: new Date(Date.now() - 3600000).toISOString(), source: "manual", kind: "kyc_approval", entityId: DEFAULT_USER_ID, entityType: "user", result: "approved", label: "KYC Verification Approved", actor: "S. Miller" },
   ],
   kycVerificationResults: {},
   logisticsDetails: {
@@ -893,6 +933,8 @@ const initialState: DashboardState = {
     { id: "app-2", userId: DEFAULT_USER_ID, type: "kyc_doc_uploaded", description: "Mining License (Front) uploaded", at: new Date(Date.now() - 43200000).toISOString() },
     { id: "app-3", userId: "MB-USR-8821-B", type: "order_submitted", description: "Buy order created: Copper Cathodes 1,200 MT", at: new Date(Date.now() - 3600000).toISOString() },
   ],
+  customCategories: [],
+  customSellCategories: [],
 };
 
 const DashboardStoreContext = createContext<{ state: DashboardState; dispatch: React.Dispatch<DashboardAction> } | null>(null);
