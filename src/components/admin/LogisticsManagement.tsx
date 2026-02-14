@@ -1069,6 +1069,72 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
                   </div>
                 </div>
               )}
+
+              {/* Shipment details table */}
+              <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Shipment details</h4>
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Shipment details</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">User</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Route material</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Carrier</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Status</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Risk</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {displayShipments.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-sm text-muted-foreground text-center py-8">
+                            No shipments to show. Orders will appear here when available.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        displayShipments.slice(0, 10).map((s) => {
+                          const order = allOrders.find((o) => o.id === s.orderId);
+                          const userName = order ? getRegistryUserName(state.registryUsers, order.userId) : "—";
+                          const logistics = order ? getLogisticsDetailsForOrder(state, order.id) : null;
+                          const carrier = logistics?.carrierName || s.carrier || "—";
+                          const riskColor = s.delayRisk === "Medium" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                          return (
+                            <TableRow key={s.id} className="border-slate-100 dark:border-slate-800">
+                              <TableCell className="text-sm font-medium text-slate-900 dark:text-white">
+                                <span className="font-mono">{s.orderId}</span>
+                              </TableCell>
+                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{userName}</TableCell>
+                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{s.mineral}</TableCell>
+                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{carrier}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="text-xs font-medium">{s.status}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className={`text-xs font-medium ${riskColor}`}>{s.delayRisk}</Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="link"
+                                  size="sm"
+                                  className="text-emerald-600 hover:text-emerald-700 font-medium h-auto p-0"
+                                  onClick={() => {
+                                    loadExistingForOrder(s.orderId);
+                                    toast.success("Send for logistics", { description: `Order ${s.orderId} — tracking form ready.` });
+                                  }}
+                                >
+                                  Send for logistics
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
