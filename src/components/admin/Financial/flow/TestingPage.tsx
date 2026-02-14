@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../ui/card";
 import { Button } from "../../../ui/button";
 import { Input } from "../../../ui/input";
 import { FlowNavigation } from "../../../financial/FlowNavigation";
+import { FlowStepContext } from "../../../financial/FlowStepContext";
 import { useDashboardStore } from "../../../../store/dashboardStore";
 import { submitTesting } from "../../../../lib/financialApi";
 import type { FinancialFlowStep } from "../../../../lib/financialApi";
@@ -13,9 +14,11 @@ export interface TestingPageProps {
   transactionId: string;
   onNavigateToStep: (step: FinancialFlowStep) => void;
   onBackToTransactions: () => void;
+  onOpenOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
+  onOpenLogisticsDetail?: (orderId: string) => void;
 }
 
-export function TestingPage({ transactionId, onNavigateToStep, onBackToTransactions }: TestingPageProps) {
+export function TestingPage({ transactionId, onNavigateToStep, onBackToTransactions, onOpenOrderDetail, onOpenLogisticsDetail }: TestingPageProps) {
   const { state, dispatch } = useDashboardStore();
   const tx = state.transactions.find((t) => t.id === transactionId);
   const [lab, setLab] = useState("SGS");
@@ -58,6 +61,8 @@ export function TestingPage({ transactionId, onNavigateToStep, onBackToTransacti
         onNavigateToStep={onNavigateToStep}
         onBackToTransactions={onBackToTransactions}
       />
+
+      <FlowStepContext transactionId={transactionId} onOpenOrderDetail={onOpenOrderDetail} onOpenLogisticsDetail={onOpenLogisticsDetail} />
 
       <Card className="border border-slate-200 dark:border-slate-700">
         <CardHeader>

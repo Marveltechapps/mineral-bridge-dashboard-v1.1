@@ -51,69 +51,43 @@ import {
   TableRow,
 } from "../ui/table";
 import { useDashboardStore } from "../../store/dashboardStore";
+import { useRoleOptional } from "../../contexts/RoleContext";
+import type { StoredAdmin } from "../../contexts/RoleContext";
+import { ADMIN_ROLES } from "../../lib/permissions";
+
+const ADMIN_ROLE_LABELS = ADMIN_ROLES.map((r) => ({ value: r.value, label: r.label }));
 
 export function AdminSettings() {
   const { state } = useDashboardStore();
+  const roleContext = useRoleOptional();
+  const currentRole = roleContext?.role ?? "ceo";
+  const isCeo = currentRole === "ceo";
+  const adminUsers = roleContext?.adminRegistry ?? [];
   const [activeTab, setActiveTab] = useState("general");
-  
-  // Admin Users State
-  const [adminUsers, setAdminUsers] = useState([
-    { id: 1, name: "Sarah Connor", email: "sarah@mineralbridge.com", role: "Super Admin", status: "Active" },
-    { id: 2, name: "John Smith", email: "john@mineralbridge.com", role: "Finance/Admin", status: "Active" },
-    { id: 3, name: "Emily Chen", email: "emily@mineralbridge.com", role: "Content Admin", status: "Inactive" },
-  ]);
 
   const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
   const [isManageRolesOpen, setIsManageRolesOpen] = useState(false);
   const [isEditAdminOpen, setIsEditAdminOpen] = useState(false);
-  const [newAdmin, setNewAdmin] = useState({ name: "", email: "", role: "Operations" });
-  const [editingUser, setEditingUser] = useState<any>(null);
+  const [newAdmin, setNewAdmin] = useState({ name: "", email: "", password: "", confirmPassword: "", role: "Operations Manager" });
+  const [editingUser, setEditingUser] = useState<StoredAdmin | null>(null);
+  const [editPassword, setEditPassword] = useState("");
+  const [editConfirmPassword, setEditConfirmPassword] = useState("");
 
-  // Role Permissions Data
+  // Role Permissions Data – 4-level hierarchy
   const [roles, setRoles] = useState([
-    {
-      name: "Super Admin",
-      description: "Full system access and configuration control",
-      permissions: {
-        financials: { view: true, edit: true, delete: true },
-        operations: { view: true, edit: true, delete: true },
-        content: { view: true, edit: true, delete: true },
-        users: { view: true, edit: true, delete: true }
-      }
-    },
-    {
-      name: "Finance/Admin",
-      description: "Manages payments, settlements, and invoices",
-      permissions: {
-        financials: { view: true, edit: true, delete: false },
-        operations: { view: true, edit: false, delete: false },
-        content: { view: false, edit: false, delete: false },
-        users: { view: true, edit: false, delete: false }
-      }
-    },
-    {
-      name: "Operations",
-      description: "Oversees order processing and mineral flow",
-      permissions: {
-        financials: { view: false, edit: false, delete: false },
-        operations: { view: true, edit: true, delete: false },
-        content: { view: true, edit: false, delete: false },
-        users: { view: true, edit: false, delete: false }
-      }
-    },
-    {
-      name: "Content Admin",
-      description: "Updates news, ESG reports, and static content",
-      permissions: {
-        financials: { view: false, edit: false, delete: false },
-        operations: { view: false, edit: false, delete: false },
-        content: { view: true, edit: true, delete: true },
-        users: { view: false, edit: false, delete: false }
-      }
-    }
+    { name: "CEO / Super Admin", description: "Full system access: all modules, user management, billing, system config", permissions: { financials: { view: true, edit: true, delete: true }, operations: { view: true, edit: true, delete: true }, content: { view: true, edit: true, delete: true }, users: { view: true, edit: true, delete: true } } },
+    { name: "Operations Manager", description: "Orders, Financial & Reporting, Transport; view Enquiry/User Mgmt", permissions: { financials: { view: true, edit: true, delete: false }, operations: { view: true, edit: true, delete: false }, content: { view: false, edit: false, delete: false }, users: { view: true, edit: false, delete: false } } },
+    { name: "Support Agent", description: "Enquiry & Support, User Mgmt (basic); view Orders read-only", permissions: { financials: { view: false, edit: false, delete: false }, operations: { view: true, edit: false, delete: false }, content: { view: false, edit: false, delete: false }, users: { view: true, edit: false, delete: false } } },
+    { name: "Data Entry Clerk", description: "View Orders, log calls, basic status; no money, LC, Analytics, User Mgmt", permissions: { financials: { view: false, edit: false, delete: false }, operations: { view: true, edit: false, delete: false }, content: { view: false, edit: false, delete: false }, users: { view: false, edit: false, delete: false } } },
   ]);
 
-  const [selectedRoleForEdit, setSelectedRoleForEdit] = useState("Super Admin");
+  const [selectedRoleForEdit, setSelectedRoleForEdit] = useState("CEO / Super Admin");
+  /** Dynamic permission column names (View, Edit, Delete + any added). */
+  const [permissionColumns, setPermissionColumns] = useState(["view", "edit", "delete"]);
+  const [newColumnName, setNewColumnName] = useState("");
+  const [newModuleName, setNewModuleName] = useState("");
+  const [editingModuleKey, setEditingModuleKey] = useState<string | null>(null);
+  const [editingModuleLabel, setEditingModuleLabel] = useState("");
 
   // Notifications State
   const [notifications, setNotifications] = useState({
@@ -142,63 +116,138 @@ export function AdminSettings() {
     ));
   };
 
-  const removeAdmin = (id: number) => {
-    setAdminUsers(adminUsers.filter(u => u.id !== id));
+  const removeAdmin = (id: string) => {
+    roleContext?.removeAdmin(id);
   };
 
   const handleAddAdmin = () => {
-    if (newAdmin.name && newAdmin.email) {
-      setAdminUsers([
-        ...adminUsers,
-        {
-          id: adminUsers.length + 1,
-          name: newAdmin.name,
-          email: newAdmin.email,
-          role: newAdmin.role,
-          status: "Active"
-        }
-      ]);
-      setNewAdmin({ name: "", email: "", role: "Operations" });
-      setIsAddAdminOpen(false);
-    }
+    const roleValue = ADMIN_ROLES.find((r) => r.label === newAdmin.role)?.value ?? "data_clerk";
+    if (!newAdmin.name?.trim() || !newAdmin.email?.trim()) return;
+    if (newAdmin.password.length < 4) return;
+    if (newAdmin.password !== newAdmin.confirmPassword) return;
+    roleContext?.addAdmin({
+      name: newAdmin.name.trim(),
+      email: newAdmin.email.trim().toLowerCase(),
+      password: newAdmin.password,
+      role: roleValue,
+    });
+    setNewAdmin({ name: "", email: "", password: "", confirmPassword: "", role: "Operations Manager" });
+    setIsAddAdminOpen(false);
   };
 
-  const handleEditClick = (user: any) => {
+  const handleEditClick = (user: StoredAdmin) => {
     setEditingUser(user);
+    setEditPassword("");
+    setEditConfirmPassword("");
     setIsEditAdminOpen(true);
   };
 
   const handleUpdateAdmin = () => {
-    if (editingUser && editingUser.name && editingUser.email) {
-      setAdminUsers(adminUsers.map(user => 
-        user.id === editingUser.id ? editingUser : user
-      ));
-      setIsEditAdminOpen(false);
-      setEditingUser(null);
-    }
+    if (!editingUser || !editingUser.name?.trim() || !editingUser.email?.trim()) return;
+    if (editPassword && editPassword !== editConfirmPassword) return;
+    roleContext?.updateAdmin(editingUser.id, {
+      name: editingUser.name.trim(),
+      email: editingUser.email.trim().toLowerCase(),
+      role: editingUser.role,
+      status: editingUser.status,
+      ...(editPassword ? { password: editPassword } : {}),
+    });
+    setIsEditAdminOpen(false);
+    setEditingUser(null);
+    setEditPassword("");
+    setEditConfirmPassword("");
   };
 
   // Helper to get current role permissions for the dialog
-  const currentRole = roles.find(r => r.name === selectedRoleForEdit) || roles[0];
+  const currentRoleForEdit = roles.find(r => r.name === selectedRoleForEdit) || roles[0];
 
-  const togglePermission = (module: string, type: 'view' | 'edit' | 'delete') => {
+  const togglePermission = (module: string, type: string) => {
     setRoles(roles.map(role => {
       if (role.name === selectedRoleForEdit) {
+        const perms = role.permissions[module] ?? {};
         return {
           ...role,
           permissions: {
             ...role.permissions,
-            [module]: {
-              // @ts-ignore
-              ...role.permissions[module],
-              // @ts-ignore
-              [type]: !role.permissions[module][type]
-            }
+            [module]: { ...perms, [type]: !(perms as Record<string, boolean>)[type] }
           }
         };
       }
       return role;
     }));
+  };
+
+  const handleAddColumn = () => {
+    const col = newColumnName.trim().toLowerCase().replace(/\s+/g, "_");
+    if (!col || permissionColumns.includes(col)) return;
+    setPermissionColumns((prev) => [...prev, col]);
+    setRoles(roles.map((role) => ({
+      ...role,
+      permissions: Object.fromEntries(
+        Object.entries(role.permissions).map(([mod, perms]) => [
+          mod,
+          { ...(perms as Record<string, boolean>), [col]: role.name === "CEO / Super Admin" }
+        ])
+      )
+    })));
+    setNewColumnName("");
+  };
+
+  const handleAddModule = () => {
+    const key = newModuleName.trim().toLowerCase().replace(/\s+/g, "_");
+    if (!key) return;
+    const hasAlready = roles.some((r) => key in r.permissions);
+    if (hasAlready) return;
+    setRoles(roles.map((role) => ({
+      ...role,
+      permissions: {
+        ...role.permissions,
+        [key]: Object.fromEntries(
+          permissionColumns.map((c) => [c, role.name === "CEO / Super Admin"])
+        ) as Record<string, boolean>
+      }
+    })));
+    setNewModuleName("");
+  };
+
+  const handleRenameModule = (oldKey: string, newKey: string) => {
+    const key = newKey.trim().toLowerCase().replace(/\s+/g, "_");
+    if (!key || key === oldKey) {
+      setEditingModuleKey(null);
+      return;
+    }
+    setRoles(roles.map((role) => {
+      const perms = { ...role.permissions };
+      if (perms[oldKey]) {
+        perms[key] = perms[oldKey];
+        delete perms[oldKey];
+      }
+      return { ...role, permissions: perms };
+    }));
+    setEditingModuleKey(null);
+  };
+
+  const handleRemoveModule = (moduleKey: string) => {
+    setRoles(roles.map((role) => {
+      const perms = { ...role.permissions };
+      delete perms[moduleKey];
+      return { ...role, permissions: perms };
+    }));
+  };
+
+  const handleRemoveColumn = (col: string) => {
+    if (permissionColumns.length <= 1) return;
+    setPermissionColumns((prev) => prev.filter((c) => c !== col));
+    setRoles(roles.map((role) => ({
+      ...role,
+      permissions: Object.fromEntries(
+        Object.entries(role.permissions).map(([mod, perms]) => {
+          const p = { ...(perms as Record<string, boolean>) };
+          delete p[col];
+          return [mod, p];
+        })
+      )
+    })));
   };
 
   return (
@@ -370,62 +419,118 @@ export function AdminSettings() {
                           Manage Roles
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="sm:max-w-md">
+                      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
                         <DialogHeader>
                           <DialogTitle>Role Permissions</DialogTitle>
                           <DialogDescription>
-                            Configure granular access levels for each administrative role.
+                            Configure granular access levels for each administrative role. Add new columns or modules below.
                           </DialogDescription>
                         </DialogHeader>
                         
-                        <Tabs defaultValue="Super Admin" value={selectedRoleForEdit} onValueChange={setSelectedRoleForEdit} className="w-full">
-                           <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg w-full justify-start overflow-x-auto">
+                        <Tabs defaultValue="CEO / Super Admin" value={selectedRoleForEdit} onValueChange={setSelectedRoleForEdit} className="w-full flex-1 min-h-0 flex flex-col">
+                           <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg w-full justify-start overflow-x-auto shrink-0">
                               {roles.map(r => (
                                 <TabsTrigger key={r.name} value={r.name} className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400">{r.name}</TabsTrigger>
                               ))}
                            </TabsList>
-                           <div className="mt-4">
+                           <div className="mt-4 flex-1 min-h-0 overflow-auto">
                              <div className="mb-4">
-                               <h4 className="font-semibold text-sm">{currentRole.name}</h4>
-                               <p className="text-xs text-muted-foreground">{currentRole.description}</p>
+                               <h4 className="font-semibold text-sm">{currentRoleForEdit.name}</h4>
+                               <p className="text-xs text-muted-foreground">{currentRoleForEdit.description}</p>
                              </div>
-                             
+
+                             {/* Add new column */}
+                             <div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                               <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">Add permission column</Label>
+                               <Input
+                                 placeholder="e.g. Export, Approve"
+                                 value={newColumnName}
+                                 onChange={(e) => setNewColumnName(e.target.value)}
+                                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddColumn())}
+                                 className="h-8 w-40 text-sm"
+                               />
+                               <Button type="button" size="sm" variant="secondary" className="h-8" onClick={handleAddColumn} disabled={!newColumnName.trim()}>
+                                 Add column
+                               </Button>
+                             </div>
+
                              <Table>
                                <TableHeader>
                                  <TableRow>
-                                   <TableHead>Module</TableHead>
-                                   <TableHead className="text-center">View</TableHead>
-                                   <TableHead className="text-center">Edit</TableHead>
-                                   <TableHead className="text-center">Delete</TableHead>
+                                   <TableHead className="w-[180px]">Module</TableHead>
+                                   {permissionColumns.map((col) => (
+                                     <TableHead key={col} className="text-center min-w-[80px]">
+                                       <span className="capitalize">{col.replace(/_/g, " ")}</span>
+                                       {permissionColumns.length > 1 && (
+                                         <button
+                                           type="button"
+                                           className="ml-1 text-slate-400 hover:text-red-500 text-xs"
+                                           onClick={() => handleRemoveColumn(col)}
+                                           aria-label={`Remove ${col}`}
+                                         >
+                                           ×
+                                         </button>
+                                       )}
+                                     </TableHead>
+                                   ))}
                                  </TableRow>
                                </TableHeader>
                                <TableBody>
-                                 {Object.entries(currentRole.permissions).map(([module, perms]) => (
-                                   <TableRow key={module}>
-                                     <TableCell className="font-medium capitalize">{module === 'users' ? 'User Management' : module}</TableCell>
-                                     <TableCell className="text-center">
-                                       <Checkbox 
-                                          checked={perms.view} 
-                                          onCheckedChange={() => togglePermission(module, 'view')}
-                                          disabled={currentRole.name === 'Super Admin'} 
-                                       />
+                                 {Object.entries(currentRoleForEdit.permissions).map(([moduleKey, perms]) => (
+                                   <TableRow key={moduleKey}>
+                                     <TableCell className="p-1 align-middle">
+                                       {editingModuleKey === moduleKey ? (
+                                         <Input
+                                           className="h-8 text-sm font-medium"
+                                           value={editingModuleLabel}
+                                           onChange={(e) => setEditingModuleLabel(e.target.value)}
+                                           onBlur={() => handleRenameModule(moduleKey, editingModuleLabel)}
+                                           onKeyDown={(e) => {
+                                             if (e.key === "Enter") handleRenameModule(moduleKey, editingModuleLabel);
+                                             if (e.key === "Escape") setEditingModuleKey(null);
+                                           }}
+                                           autoFocus
+                                         />
+                                       ) : (
+                                         <div className="flex items-center gap-1">
+                                           <span className="font-medium capitalize text-sm">{moduleKey === "users" ? "User Management" : moduleKey.replace(/_/g, " ")}</span>
+                                           <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400" onClick={() => { setEditingModuleKey(moduleKey); setEditingModuleLabel(moduleKey); }} aria-label="Rename module">
+                                             <Edit className="h-3 w-3" />
+                                           </Button>
+                                           <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-600" onClick={() => handleRemoveModule(moduleKey)} aria-label="Remove module">
+                                             <Trash2 className="h-3 w-3" />
+                                           </Button>
+                                         </div>
+                                       )}
                                      </TableCell>
-                                     <TableCell className="text-center">
-                                       <Checkbox 
-                                          checked={perms.edit} 
-                                          onCheckedChange={() => togglePermission(module, 'edit')}
-                                          disabled={currentRole.name === 'Super Admin'}
-                                       />
-                                     </TableCell>
-                                     <TableCell className="text-center">
-                                       <Checkbox 
-                                          checked={perms.delete} 
-                                          onCheckedChange={() => togglePermission(module, 'delete')}
-                                          disabled={currentRole.name === 'Super Admin'}
-                                       />
-                                     </TableCell>
+                                     {permissionColumns.map((col) => (
+                                       <TableCell key={col} className="text-center p-1">
+                                         <Checkbox
+                                           checked={!!(perms as Record<string, boolean>)[col]}
+                                           onCheckedChange={() => togglePermission(moduleKey, col)}
+                                           disabled={currentRoleForEdit.name === "CEO / Super Admin"}
+                                         />
+                                       </TableCell>
+                                     ))}
                                    </TableRow>
                                  ))}
+                                 <TableRow className="bg-slate-50/50 dark:bg-slate-800/30">
+                                   <TableCell colSpan={permissionColumns.length + 1} className="p-2">
+                                     <div className="flex flex-wrap items-center gap-2">
+                                       <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">Add module row</Label>
+                                       <Input
+                                         placeholder="e.g. Reports, Analytics"
+                                         value={newModuleName}
+                                         onChange={(e) => setNewModuleName(e.target.value)}
+                                         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddModule())}
+                                         className="h-8 w-40 text-sm"
+                                       />
+                                       <Button type="button" size="sm" variant="secondary" className="h-8" onClick={handleAddModule} disabled={!newModuleName.trim()}>
+                                         Add module
+                                       </Button>
+                                     </div>
+                                   </TableCell>
+                                 </TableRow>
                                </TableBody>
                              </Table>
                            </div>
@@ -437,6 +542,7 @@ export function AdminSettings() {
                       </DialogContent>
                     </Dialog>
 
+                    {isCeo && (
                     <Dialog open={isAddAdminOpen} onOpenChange={setIsAddAdminOpen}>
                       <DialogTrigger asChild>
                         <Button size="sm" className="gap-2">
@@ -475,6 +581,32 @@ export function AdminSettings() {
                             />
                           </div>
                           <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="password" className="text-right">
+                              Password
+                            </Label>
+                            <Input
+                              id="password"
+                              type="password"
+                              placeholder="Min 4 characters"
+                              value={newAdmin.password}
+                              onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="confirmPassword" className="text-right">
+                              Confirm password
+                            </Label>
+                            <Input
+                              id="confirmPassword"
+                              type="password"
+                              placeholder="Re-enter password"
+                              value={newAdmin.confirmPassword}
+                              onChange={(e) => setNewAdmin({ ...newAdmin, confirmPassword: e.target.value })}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="role" className="text-right">
                               Role
                             </Label>
@@ -486,19 +618,19 @@ export function AdminSettings() {
                                 <SelectValue placeholder="Select role" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Super Admin">Super Admin</SelectItem>
-                                <SelectItem value="Finance/Admin">Finance/Admin</SelectItem>
-                                <SelectItem value="Operations">Operations</SelectItem>
-                                <SelectItem value="Content Admin">Content Admin</SelectItem>
+                                {ADMIN_ROLE_LABELS.map((r) => (
+                                  <SelectItem key={r.value} value={r.label}>{r.label}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
                         </div>
                         <DialogFooter>
-                          <Button onClick={handleAddAdmin}>Save User</Button>
+                          <Button onClick={handleAddAdmin} disabled={!newAdmin.password || newAdmin.password !== newAdmin.confirmPassword || newAdmin.password.length < 4}>Save User</Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
+                    )}
 
                     {/* Edit Admin Dialog */}
                     <Dialog open={isEditAdminOpen} onOpenChange={setIsEditAdminOpen}>
@@ -538,24 +670,49 @@ export function AdminSettings() {
                                 Role
                               </Label>
                               <Select 
-                                  value={editingUser.role} 
-                                  onValueChange={(val) => setEditingUser({ ...editingUser, role: val })}
+                                  value={roleContext?.getRoleLabel(editingUser.role) ?? editingUser.role} 
+                                  onValueChange={(val) => setEditingUser({ ...editingUser, role: ADMIN_ROLES.find((r) => r.label === val)?.value ?? editingUser.role })}
                               >
                                 <SelectTrigger className="col-span-3">
                                   <SelectValue placeholder="Select role" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Super Admin">Super Admin</SelectItem>
-                                  <SelectItem value="Finance/Admin">Finance/Admin</SelectItem>
-                                  <SelectItem value="Operations">Operations</SelectItem>
-                                  <SelectItem value="Content Admin">Content Admin</SelectItem>
+                                  {ADMIN_ROLE_LABELS.map((r) => (
+                                    <SelectItem key={r.value} value={r.label}>{r.label}</SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="edit-password" className="text-right">
+                                New password
+                              </Label>
+                              <Input
+                                id="edit-password"
+                                type="password"
+                                placeholder="Leave blank to keep current"
+                                value={editPassword}
+                                onChange={(e) => setEditPassword(e.target.value)}
+                                className="col-span-3"
+                              />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="edit-confirmPassword" className="text-right">
+                                Confirm new password
+                              </Label>
+                              <Input
+                                id="edit-confirmPassword"
+                                type="password"
+                                placeholder="Re-enter to change"
+                                value={editConfirmPassword}
+                                onChange={(e) => setEditConfirmPassword(e.target.value)}
+                                className="col-span-3"
+                              />
                             </div>
                           </div>
                         )}
                         <DialogFooter>
-                          <Button onClick={handleUpdateAdmin}>Update User</Button>
+                          <Button onClick={handleUpdateAdmin} disabled={editPassword !== "" && (editPassword.length < 4 || editPassword !== editConfirmPassword)}>Update User</Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
@@ -576,7 +733,7 @@ export function AdminSettings() {
                        </div>
                        <div className="flex items-center gap-4">
                          <Badge variant={user.status === "Active" ? "default" : "secondary"}>
-                           {user.role}
+                           {roleContext?.getRoleLabel(user.role) ?? user.role}
                          </Badge>
                          <div className="flex gap-1">
                            <Button 
@@ -587,6 +744,7 @@ export function AdminSettings() {
                            >
                              <Edit className="w-4 h-4" />
                            </Button>
+                           {isCeo && (
                            <Button 
                              variant="ghost" 
                              size="icon" 
@@ -595,6 +753,7 @@ export function AdminSettings() {
                            >
                              <Trash2 className="w-4 h-4" />
                            </Button>
+                           )}
                          </div>
                        </div>
                      </div>

@@ -36,6 +36,16 @@ import { AdminSettings } from "./components/admin/AdminSettings";
 import { Notifications } from "./components/dashboard/Notifications";
 import { GlobalSearchResults } from "./components/dashboard/GlobalSearchResults";
 import { Toaster } from "./components/ui/sonner";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./components/ui/breadcrumb";
+import { RoleProvider, useRole } from "./contexts/RoleContext";
+import type { AdminUser } from "./contexts/RoleContext";
 
 type AuthView = "login" | "forgotPassword" | "requestAccess";
 
@@ -54,13 +64,14 @@ type ViewParams = {
   ordersSheetTab?: string;
 };
 
-export default function App() {
+function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentView, setCurrentView] = useState("dashboard");
   const [orderDetail, setOrderDetail] = useState<OrderDetailParams>(null);
   const [viewParams, setViewParams] = useState<ViewParams>({});
   const [authView, setAuthView] = useState<AuthView>("login");
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const { setUser } = useRole();
 
   const navigateTo = useCallback((view: string, params?: ViewParams) => {
     setCurrentView(view);
@@ -77,12 +88,14 @@ export default function App() {
     setViewParams(mineralId ? { selectedMineralId: mineralId } : {});
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = (user: AdminUser) => {
+    setUser(user);
     setIsAuthenticated(true);
     setAuthView("login");
   };
 
   const handleLogout = () => {
+    setUser(null);
     setIsAuthenticated(false);
     setCurrentView("dashboard");
     setAuthView("login");
@@ -352,13 +365,64 @@ export default function App() {
             </div>
           );
         }
-        const common = { transactionId: txId, onNavigateToStep: goToStep, onBackToTransactions: backToTransactions };
-        if (currentView === "finance-send-qr") return <SendQRPage {...common} />;
-        if (currentView === "finance-call-buyer") return <CallBuyerPage {...common} />;
-        if (currentView === "finance-reserve-escrow") return <ReserveEscrowPage {...common} />;
-        if (currentView === "finance-testing") return <TestingPage {...common} />;
-        if (currentView === "finance-lc-issued") return <LcIssuedPage {...common} />;
-        return <ReleasePaymentPage {...common} />;
+        const common = {
+          transactionId: txId,
+          onNavigateToStep: goToStep,
+          onBackToTransactions: backToTransactions,
+          onOpenOrderDetail: openOrderDetail,
+          onOpenLogisticsDetail: (orderId: string) => navigateTo("logistics", { selectedOrderId: orderId }),
+        };
+        const stepLabels: Record<string, string> = {
+          "finance-send-qr": "Send QR",
+          "finance-call-buyer": "Call Buyer",
+          "finance-reserve-escrow": "Reserve Escrow",
+          "finance-testing": "Testing",
+          "finance-lc-issued": "LC Issued",
+          "finance-release": "Release Payment",
+        };
+        const stepLabel = stepLabels[currentView] ?? "Step";
+        const FinanceFlowBreadcrumb = () => (
+          <Breadcrumb className="mb-4">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <button type="button" onClick={() => navigateTo("finance", {})} className="text-xs font-medium text-muted-foreground hover:text-[#A855F7] transition-colors">
+                    Financial & Reporting
+                  </button>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <button type="button" onClick={backToTransactions} className="text-xs font-medium text-muted-foreground hover:text-[#A855F7] transition-colors">
+                    Transactions
+                  </button>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage className="text-xs font-medium text-slate-900 dark:text-white">
+                  {stepLabel}
+                </BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        );
+        const content =
+          currentView === "finance-send-qr" ? <SendQRPage {...common} /> :
+          currentView === "finance-call-buyer" ? <CallBuyerPage {...common} /> :
+          currentView === "finance-reserve-escrow" ? <ReserveEscrowPage {...common} /> :
+          currentView === "finance-testing" ? <TestingPage {...common} /> :
+          currentView === "finance-lc-issued" ? <LcIssuedPage {...common} /> :
+          <ReleasePaymentPage {...common} />;
+        return (
+          <div className="max-w-6xl mx-auto">
+            <div className="px-6 pt-6">
+              <FinanceFlowBreadcrumb />
+            </div>
+            {content}
+          </div>
+        );
       }
       case "content":
         return <ContentMarketing />;
@@ -406,20 +470,28 @@ export default function App() {
   };
 
   return (
+    <DashboardLayout
+      currentView={currentView}
+      onViewChange={setCurrentView}
+      onLogout={handleLogout}
+      globalSearchQuery={globalSearchQuery}
+      onGlobalSearch={(query) => {
+        setGlobalSearchQuery(query);
+        setCurrentView("search");
+      }}
+    >
+      {renderCurrentView()}
+    </DashboardLayout>
+  );
+}
+
+export default function App() {
+  return (
     <DashboardStoreProvider>
-      <DashboardLayout
-        currentView={currentView}
-        onViewChange={setCurrentView}
-        onLogout={handleLogout}
-        globalSearchQuery={globalSearchQuery}
-        onGlobalSearch={(query) => {
-          setGlobalSearchQuery(query);
-          setCurrentView("search");
-        }}
-      >
-        {renderCurrentView()}
-      </DashboardLayout>
-      <Toaster position="top-right" />
+      <RoleProvider>
+        <AppContent />
+        <Toaster position="top-right" />
+      </RoleProvider>
     </DashboardStoreProvider>
   );
 }

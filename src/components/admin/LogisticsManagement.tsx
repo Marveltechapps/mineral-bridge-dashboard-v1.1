@@ -276,6 +276,8 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
   const { state, dispatch } = useDashboardStore();
   const allOrders = useAllOrders();
   const [thirdPartyTabOrderId, setThirdPartyTabOrderId] = useState<string>("");
+  const [sendTxOrderId, setSendTxOrderId] = useState<string | null>(null);
+  const [sendTxEmail, setSendTxEmail] = useState("");
   const [thirdPartyForm, setThirdPartyForm] = useState<Omit<LogisticsDetails, "orderId" | "updatedAt">>({
     carrierName: "",
     trackingNumber: "",
@@ -324,6 +326,42 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
     toast.success("3rd party details saved", { description: `Order ${orderId}. Link/QR will appear in customer app.` });
     setThirdPartyForm({ carrierName: "", trackingNumber: "", trackingUrl: "", qrPayload: "", contactPhone: "", contactEmail: "", notes: "" });
     setThirdPartyTabOrderId("");
+  };
+
+  const transactionForOrder = sendTxOrderId ? state.transactions.find((t) => t.orderId === sendTxOrderId) : null;
+  const orderForSendTx = sendTxOrderId ? allOrders.find((o) => o.id === sendTxOrderId) : null;
+
+  const handleCopyTransactionDetails = () => {
+    if (!transactionForOrder || !orderForSendTx) return;
+    const userName = getRegistryUserName(state.registryUsers, orderForSendTx.userId);
+    const lines = [
+      `Transaction: ${transactionForOrder.id}`,
+      `Order: ${transactionForOrder.orderId}`,
+      `Counterparty: ${userName}`,
+      `Type: ${transactionForOrder.orderType}`,
+      `Mineral: ${transactionForOrder.mineral}`,
+      `Amount: ${transactionForOrder.finalAmount} ${transactionForOrder.currency}`,
+      `Fee: ${transactionForOrder.serviceFee ?? "—"}`,
+      `Net: ${transactionForOrder.netAmount ?? "—"}`,
+      `Method: ${transactionForOrder.method}`,
+      `Status: ${transactionForOrder.status}`,
+      `Date: ${transactionForOrder.date} ${transactionForOrder.time}`,
+      transactionForOrder.settlementNote ? `Note: ${transactionForOrder.settlementNote}` : "",
+    ].filter(Boolean);
+    const text = lines.join("\n");
+    navigator.clipboard.writeText(text).then(() => toast.success("Transaction details copied to clipboard"));
+  };
+
+  const handleSendTransactionByEmail = () => {
+    const email = sendTxEmail.trim();
+    if (!transactionForOrder) return;
+    if (email) {
+      toast.success("Transaction details sent", { description: `Sent to ${email} for ${transactionForOrder.id}` });
+    } else {
+      toast.success("Transaction details ready to send", { description: `Order ${sendTxOrderId} — add email and use your mail client or integration.` });
+    }
+    setSendTxOrderId(null);
+    setSendTxEmail("");
   };
 
   const loadExistingForOrder = (orderId: string) => {
@@ -654,6 +692,10 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-48 rounded-xl border-slate-100 dark:border-slate-800 shadow-xl">
                                   <DropdownMenuLabel className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 py-2">Logistics Actions</DropdownMenuLabel>
+                                  <DropdownMenuItem className="cursor-pointer gap-2 py-2.5 rounded-lg" onClick={() => setSendTxOrderId(shipment.orderId)}>
+                                    <Mail className="w-4 h-4 text-[#A855F7]" />
+                                    <span className="font-bold text-sm">Send transaction details</span>
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem className="cursor-pointer gap-2 py-2.5 rounded-lg">
                                     <History className="w-4 h-4 text-emerald-500" />
                                     <span className="font-bold text-sm">Reroute Shipment</span>
@@ -1115,17 +1157,28 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
                                 <Badge variant="secondary" className={`text-xs font-medium ${riskColor}`}>{s.delayRisk}</Badge>
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button
-                                  variant="link"
-                                  size="sm"
-                                  className="text-emerald-600 hover:text-emerald-700 font-medium h-auto p-0"
-                                  onClick={() => {
-                                    loadExistingForOrder(s.orderId);
-                                    toast.success("Send for logistics", { description: `Order ${s.orderId} — tracking form ready.` });
-                                  }}
-                                >
-                                  Send for logistics
-                                </Button>
+                                <div className="flex items-center justify-end gap-2 flex-wrap">
+                                  <Button
+                                    variant="link"
+                                    size="sm"
+                                    className="text-emerald-600 hover:text-emerald-700 font-medium h-auto p-0"
+                                    onClick={() => {
+                                      loadExistingForOrder(s.orderId);
+                                      toast.success("Send for logistics", { description: `Order ${s.orderId} — tracking form ready.` });
+                                    }}
+                                  >
+                                    Send for logistics
+                                  </Button>
+                                  <Button
+                                    variant="link"
+                                    size="sm"
+                                    className="text-[#A855F7] hover:text-purple-600 font-medium h-auto p-0 gap-1"
+                                    onClick={() => setSendTxOrderId(s.orderId)}
+                                  >
+                                    <Mail className="h-3.5 w-3.5" />
+                                    Send transaction details
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
@@ -1139,6 +1192,91 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Send transaction details modal */}
+      <Dialog open={!!sendTxOrderId} onOpenChange={(open) => { if (!open) { setSendTxOrderId(null); setSendTxEmail(""); } }}>
+        <DialogContent className="sm:max-w-lg rounded-3xl p-0 overflow-hidden border-none bg-white dark:bg-slate-950">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Send transaction details</DialogTitle>
+            <DialogDescription>View and send transaction details for this order to carrier or partner.</DialogDescription>
+          </DialogHeader>
+          <div className="p-6 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#A855F7]/10 flex items-center justify-center">
+                <Mail className="w-5 h-5 text-[#A855F7]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">Transaction details</h3>
+                <p className="text-xs text-slate-500">Order ID: {sendTxOrderId ?? "—"}</p>
+              </div>
+            </div>
+            {transactionForOrder ? (
+              <>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-4 space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    <span className="text-slate-500">Transaction ID</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">{transactionForOrder.id}</span>
+                    <span className="text-slate-500">Order</span>
+                    <span className="font-medium">{transactionForOrder.orderId}</span>
+                    <span className="text-slate-500">Type</span>
+                    <span className="font-medium">{transactionForOrder.orderType}</span>
+                    <span className="text-slate-500">Mineral</span>
+                    <span className="font-medium">{transactionForOrder.mineral}</span>
+                    <span className="text-slate-500">Amount</span>
+                    <span className="font-medium">{transactionForOrder.finalAmount} {transactionForOrder.currency}</span>
+                    <span className="text-slate-500">Fee / Net</span>
+                    <span className="font-medium">{transactionForOrder.serviceFee ?? "—"} / {transactionForOrder.netAmount ?? "—"}</span>
+                    <span className="text-slate-500">Method</span>
+                    <span className="font-medium">{transactionForOrder.method}</span>
+                    <span className="text-slate-500">Status</span>
+                    <span><Badge variant="secondary" className="text-xs">{transactionForOrder.status}</Badge></span>
+                    <span className="text-slate-500">Date</span>
+                    <span className="font-medium">{transactionForOrder.date} {transactionForOrder.time}</span>
+                  </div>
+                  {orderForSendTx && (
+                    <>
+                      <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-2" />
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                        <span className="text-slate-500">Counterparty</span>
+                        <span className="font-medium">{getRegistryUserName(state.registryUsers, orderForSendTx.userId) || "—"}</span>
+                      </div>
+                    </>
+                  )}
+                  {transactionForOrder.settlementNote && (
+                    <p className="text-xs text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-700"><span className="font-medium">Note:</span> {transactionForOrder.settlementNote}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Send to email (optional)</label>
+                  <Input
+                    type="email"
+                    placeholder="carrier@example.com"
+                    value={sendTxEmail}
+                    onChange={(e) => setSendTxEmail(e.target.value)}
+                    className="rounded-xl border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button className="rounded-xl bg-[#A855F7] hover:bg-[#9333EA] text-white font-bold" onClick={handleSendTransactionByEmail}>
+                    <Mail className="w-4 h-4 mr-2" />
+                    {sendTxEmail.trim() ? "Send to email" : "Confirm send"}
+                  </Button>
+                  <Button variant="outline" className="rounded-xl font-bold" onClick={handleCopyTransactionDetails}>
+                    Copy details
+                  </Button>
+                  <Button variant="ghost" className="rounded-xl" onClick={() => { setSendTxOrderId(null); setSendTxEmail(""); }}>
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20 p-4 text-sm text-amber-800 dark:text-amber-200">
+                No transaction found for order <span className="font-mono font-bold">{sendTxOrderId}</span>. Add or complete a transaction for this order first.
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Tracking Modal */}
       <Dialog open={isTrackingModalOpen} onOpenChange={setIsTrackingModalOpen}>

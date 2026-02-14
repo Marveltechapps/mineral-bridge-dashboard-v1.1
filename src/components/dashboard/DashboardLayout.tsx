@@ -45,6 +45,8 @@ import {
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Input } from "../ui/input";
+import { useRoleOptional } from "../../contexts/RoleContext";
+import { getRoleLabel } from "../../lib/permissions";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", view: "dashboard" },
@@ -87,6 +89,15 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, currentView = "dashboard", onViewChange, onLogout, globalSearchQuery, onGlobalSearch }: DashboardLayoutProps) {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchInput, setSearchInput] = useState(globalSearchQuery ?? "");
+  const roleContext = useRoleOptional();
+  const role = roleContext?.role ?? "ceo";
+  const user = roleContext?.user;
+  const visibleMenuItems = menuItems.filter((item) => roleContext?.hasModuleAccess(item.view) ?? true);
+  const menuItemsWithSubs = visibleMenuItems.map((item) => {
+    if (!item.subItems) return { ...item, subItems: undefined };
+    const allowedSubs = item.subItems.filter((sub) => roleContext?.hasModuleAccess(sub.view) ?? true);
+    return { ...item, subItems: allowedSubs.length > 0 ? allowedSubs : undefined };
+  });
 
   useEffect(() => {
     if (globalSearchQuery !== undefined) setSearchInput(globalSearchQuery);
@@ -121,7 +132,7 @@ export function DashboardLayout({ children, currentView = "dashboard", onViewCha
           
           <SidebarContent className="p-3">
             <SidebarMenu>
-              {menuItems.map((item, index) => (
+              {menuItemsWithSubs.map((item, index) => (
                 <SidebarMenuItem key={index}>
                   <div className="flex flex-col">
                     <SidebarMenuButton 
@@ -176,12 +187,15 @@ export function DashboardLayout({ children, currentView = "dashboard", onViewCha
               <div className="flex items-center space-x-3 px-2">
                 <Avatar className="w-9 h-9 border border-emerald-100 dark:border-emerald-900">
                   <AvatarFallback className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-sm">
-                    AD
+                    {(user?.name ?? "AD").slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate text-slate-900 dark:text-slate-100">Admin User</p>
-                  <p className="text-xs text-muted-foreground truncate">admin@mineralbridge.com</p>
+                  <p className="text-sm font-medium truncate text-slate-900 dark:text-slate-100">{user?.name ?? "Admin User"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email ?? "admin@mineralbridge.com"}</p>
+                  {user?.role && (
+                    <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">{getRoleLabel(user.role)}</p>
+                  )}
                 </div>
               </div>
               {onLogout && (
@@ -256,7 +270,7 @@ export function DashboardLayout({ children, currentView = "dashboard", onViewCha
                     <Button variant="ghost" className="h-9 gap-2 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
                       <Avatar className="w-7 h-7">
                         <AvatarFallback className="bg-emerald-600 text-white text-xs">
-                          AD
+                          {(user?.name ?? "AD").slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
@@ -265,8 +279,9 @@ export function DashboardLayout({ children, currentView = "dashboard", onViewCha
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium">Admin User</p>
-                        <p className="text-xs text-muted-foreground">admin@mineralbridge.com</p>
+                        <p className="text-sm font-medium">{user?.name ?? "Admin User"}</p>
+                        <p className="text-xs text-muted-foreground">{user?.email ?? "admin@mineralbridge.com"}</p>
+                        {user?.role && <p className="text-[10px] font-medium text-emerald-600">{getRoleLabel(user.role)}</p>}
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />

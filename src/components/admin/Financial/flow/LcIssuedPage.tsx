@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../ui/card";
 import { Button } from "../../../ui/button";
 import { Input } from "../../../ui/input";
 import { FlowNavigation } from "../../../financial/FlowNavigation";
+import { FlowStepContext } from "../../../financial/FlowStepContext";
 import { useDashboardStore } from "../../../../store/dashboardStore";
 import { issueLc } from "../../../../lib/financialApi";
 import type { FinancialFlowStep } from "../../../../lib/financialApi";
@@ -13,9 +14,11 @@ export interface LcIssuedPageProps {
   transactionId: string;
   onNavigateToStep: (step: FinancialFlowStep) => void;
   onBackToTransactions: () => void;
+  onOpenOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
+  onOpenLogisticsDetail?: (orderId: string) => void;
 }
 
-export function LcIssuedPage({ transactionId, onNavigateToStep, onBackToTransactions }: LcIssuedPageProps) {
+export function LcIssuedPage({ transactionId, onNavigateToStep, onBackToTransactions, onOpenOrderDetail, onOpenLogisticsDetail }: LcIssuedPageProps) {
   const { state, dispatch } = useDashboardStore();
   const tx = state.transactions.find((t) => t.id === transactionId);
   const allOrders = [...state.buyOrders, ...state.sellOrders];
@@ -58,6 +61,8 @@ export function LcIssuedPage({ transactionId, onNavigateToStep, onBackToTransact
         onNavigateToStep={onNavigateToStep}
         onBackToTransactions={onBackToTransactions}
       />
+
+      <FlowStepContext transactionId={transactionId} onOpenOrderDetail={onOpenOrderDetail} onOpenLogisticsDetail={onOpenLogisticsDetail} />
 
       <Card className="border border-slate-200 dark:border-slate-700">
         <CardHeader>

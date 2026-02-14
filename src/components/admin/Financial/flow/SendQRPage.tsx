@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../ui/card";
 import { Button } from "../../../ui/button";
 import { FlowNavigation } from "../../../financial/FlowNavigation";
+import { FlowStepContext } from "../../../financial/FlowStepContext";
 import { useDashboardStore } from "../../../../store/dashboardStore";
 import { sendQr } from "../../../../lib/financialApi";
 import type { FinancialFlowStep } from "../../../../lib/financialApi";
@@ -13,9 +14,11 @@ export interface SendQRPageProps {
   transactionId: string;
   onNavigateToStep: (step: FinancialFlowStep) => void;
   onBackToTransactions: () => void;
+  onOpenOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
+  onOpenLogisticsDetail?: (orderId: string) => void;
 }
 
-export function SendQRPage({ transactionId, onNavigateToStep, onBackToTransactions }: SendQRPageProps) {
+export function SendQRPage({ transactionId, onNavigateToStep, onBackToTransactions, onOpenOrderDetail, onOpenLogisticsDetail }: SendQRPageProps) {
   const { state, dispatch } = useDashboardStore();
   const tx = state.transactions.find((t) => t.id === transactionId);
   const [channel, setChannel] = useState<"email" | "whatsapp">("email");
@@ -58,6 +61,12 @@ export function SendQRPage({ transactionId, onNavigateToStep, onBackToTransactio
         transactionId={transactionId}
         onNavigateToStep={onNavigateToStep}
         onBackToTransactions={onBackToTransactions}
+      />
+
+      <FlowStepContext
+        transactionId={transactionId}
+        onOpenOrderDetail={onOpenOrderDetail}
+        onOpenLogisticsDetail={onOpenLogisticsDetail}
       />
 
       <Card className="border border-slate-200 dark:border-slate-700">

@@ -31,6 +31,7 @@ import {
   CheckCircle,
   FlaskConical,
   ChevronRight,
+  Upload,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -563,7 +564,7 @@ export function OrderDetailPage({
                       <>
                         <CardDescription className="text-xs flex items-center gap-1.5">
                           <FlaskConical className="h-3.5 w-3.5" />
-                          Testing &amp; certification (Sell flow). Document upload, testing quantity, lab and result. Click card to open Financial &amp; transaction tab.
+                          Testing &amp; certification (Sell flow). Document upload, testing quantity, lab and result. Click card or &quot;Upload documents&quot; to open the Testing page in Orders &amp; Settlements.
                         </CardDescription>
                         <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                           <div>
@@ -601,13 +602,33 @@ export function OrderDetailPage({
                                 </li>
                               ))}
                             </ul>
-                            <p className="text-xs text-muted-foreground mt-2">Add requirements and mark as uploaded in Financial &amp; transaction tab.</p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="default"
+                              className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={(e) => { e.stopPropagation(); relatedTx ? onNavigateToOrders?.(relatedTx.id, "testing") : (setActiveDetailTab("transaction"), setTimeout(() => document.getElementById("testing-docs-card")?.scrollIntoView({ behavior: "smooth" }), 100)); }}
+                            >
+                              <Upload className="h-3.5 w-3.5 mr-1.5" />
+                              Upload documents
+                            </Button>
+                            <p className="text-xs text-muted-foreground mt-1.5">Opens Orders &amp; Settlements → Testing &amp; Docs.</p>
                           </div>
                         )}
                         {(!order.testingReqs || order.testingReqs.length === 0) && (
                           <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
                             <Label className="text-xs text-muted-foreground">Document upload / requirements</Label>
-                            <p className="text-sm text-muted-foreground mt-1">No requirements yet. Click this card to go to Financial &amp; transaction → add document types and mark as uploaded.</p>
+                            <p className="text-sm text-muted-foreground mt-1">No requirements yet. Add document types and upload files on the Testing page in Orders &amp; Settlements.</p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="default"
+                              className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={(e) => { e.stopPropagation(); relatedTx ? onNavigateToOrders?.(relatedTx.id, "testing") : (setActiveDetailTab("transaction"), setTimeout(() => document.getElementById("testing-docs-card")?.scrollIntoView({ behavior: "smooth" }), 100)); }}
+                            >
+                              <Upload className="h-3.5 w-3.5 mr-1.5" />
+                              Go to Testing page
+                            </Button>
                           </div>
                         )}
                       </>
@@ -1020,7 +1041,7 @@ export function OrderDetailPage({
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-sm">
+            <Card id="testing-docs-card" className="border-none shadow-sm scroll-mt-4">
               <CardHeader className="pb-2 flex flex-row items-start justify-between gap-4">
                 <div>
                   <CardTitle className="text-base">
@@ -1029,7 +1050,7 @@ export function OrderDetailPage({
                   <CardDescription>
                     {type === "buy"
                       ? "Documents (assay, compliance, B/L, etc.) come from the seller or other parties (lab, verifier, third party). The buyer does not upload — track when each is received for this order."
-                      : "Seller uploads required tests and documentation. Add requirements then mark as uploaded when the seller submits."}
+                      : "Upload related documents here. Add a requirement, then choose a file for each. File name is stored for reference."}
                   </CardDescription>
                 </div>
                 <Button size="sm" variant="outline" onClick={() => { setNewTestingLabel(""); setAddTestingOpen(true); }}>
@@ -1043,10 +1064,10 @@ export function OrderDetailPage({
                     {order.testingReqs.map((req, i) => (
                       <div
                         key={i}
-                        className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800 last:border-0"
+                        className="flex flex-wrap items-center justify-between gap-2 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0"
                       >
                         <span className="font-medium text-sm text-slate-900 dark:text-slate-100">{req.label}</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Badge
                             variant="secondary"
                             className={
@@ -1057,11 +1078,35 @@ export function OrderDetailPage({
                           >
                             {type === "buy" && req.status === "Uploaded" ? "Received" : req.status}
                           </Badge>
+                          {req.status === "Uploaded" && req.uploadedFileName && (
+                            <span className="text-xs text-muted-foreground">({req.uploadedFileName})</span>
+                          )}
+                          <label className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium border border-emerald-200 bg-transparent px-3 py-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 dark:border-emerald-800">
+                            <input
+                              type="file"
+                              className="sr-only"
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file || !order) return;
+                                const updatedReqs = (order.testingReqs ?? []).map((r) =>
+                                  r.label === req.label
+                                    ? { ...r, status: "Uploaded" as const, uploadedFileName: file.name }
+                                    : r
+                                );
+                                dispatch({ type: "UPDATE_ORDER", payload: { ...order, testingReqs: updatedReqs } });
+                                toast.success("Document uploaded", { description: `${req.label}: ${file.name}` });
+                                e.target.value = "";
+                              }}
+                            />
+                            <Upload className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                            <span>{req.status === "Uploaded" ? "Replace file" : "Choose file"}</span>
+                          </label>
                           {req.status === "Pending" && (
                             <Button
                               size="sm"
                               variant="outline"
-                              className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                              className="text-slate-600 border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/20"
                               onClick={() => {
                                 const updatedReqs = (order.testingReqs ?? []).map((r) =>
                                   r.label === req.label ? { ...r, status: "Uploaded" as const } : r

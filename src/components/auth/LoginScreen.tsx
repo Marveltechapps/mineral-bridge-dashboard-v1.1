@@ -5,9 +5,12 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Eye, EyeOff, Gem, Lock, ShieldCheck } from "lucide-react";
+import type { AdminUser } from "../../contexts/RoleContext";
+import { useRoleOptional } from "../../contexts/RoleContext";
+import { toast } from "sonner";
 
 interface LoginScreenProps {
-  onLogin: () => void;
+  onLogin: (user: AdminUser) => void;
   onForgotPassword: () => void;
   onRequestAccess: () => void;
 }
@@ -18,11 +21,22 @@ export function LoginScreen({ onLogin, onForgotPassword, onRequestAccess }: Logi
   const [password, setPassword] = useState("");
   const [code2fa, setCode2fa] = useState("");
   const [language, setLanguage] = useState("en");
+  const [loginError, setLoginError] = useState("");
+  const roleContext = useRoleOptional();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email && password) {
-      onLogin();
+    setLoginError("");
+    if (!email?.trim() || !password) {
+      setLoginError("Enter email and password.");
+      return;
+    }
+    const admin = roleContext?.getAdminByCredentials(email.trim(), password);
+    if (admin) {
+      onLogin(admin);
+    } else {
+      setLoginError("Invalid email or password, or account inactive.");
+      toast.error("Login failed", { description: "Check your email and password." });
     }
   };
 
@@ -30,8 +44,11 @@ export function LoginScreen({ onLogin, onForgotPassword, onRequestAccess }: Logi
     setEmail("admin@mineralbridge.com");
     setPassword("demo123");
     setCode2fa("123456");
+    setLoginError("");
+    const admin = roleContext?.getAdminByCredentials("admin@mineralbridge.com", "demo123");
     setTimeout(() => {
-      onLogin();
+      if (admin) onLogin(admin);
+      else onLogin({ id: "1", name: "Admin", email: "admin@mineralbridge.com", role: "ceo" });
     }, 500);
   };
 
@@ -122,6 +139,11 @@ export function LoginScreen({ onLogin, onForgotPassword, onRequestAccess }: Logi
                   className="bg-white dark:bg-slate-900 tracking-widest text-center font-mono"
                 />
               </div>
+              {loginError && (
+                <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
+                  {loginError}
+                </p>
+              )}
               
               <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20">
                 Sign In

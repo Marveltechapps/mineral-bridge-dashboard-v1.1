@@ -132,7 +132,7 @@ export interface Order {
   createdAt: string;
   flowSteps: { label: string; active: boolean; completed: boolean }[];
   flowStepData?: OrderFlowStepData;
-  testingReqs?: { label: string; status: "Pending" | "Uploaded" }[];
+  testingReqs?: { label: string; status: "Pending" | "Uploaded"; uploadedFileName?: string }[];
   /** Communication log: team contact (email/mobile), updates, etc. */
   commLog: { event: string; admin: string; date: string; note?: string; contactMethod?: "Email" | "Mobile" }[];
   sentToUser?: SentToUser[];
