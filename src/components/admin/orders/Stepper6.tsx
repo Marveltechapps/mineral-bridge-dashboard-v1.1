@@ -16,16 +16,13 @@ export interface Stepper6Props {
 
 export function Stepper6({ activeStep, onStepChange }: Stepper6Props) {
   return (
-    <Card className="border-2 border-[#A855F7]/30 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-xl font-bold text-[#A855F7] flex items-center gap-2">
-          📊 6-step pipeline (Step {Math.min(activeStep, 6)}/6)
+    <Card className="border border-[#A855F7]/20 bg-slate-50/50 dark:bg-slate-900/30">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="text-sm font-medium text-[#A855F7]">
+          Step {Math.min(activeStep, 6)}/6
         </CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
-          Step 1–2–3 = Your job (Send QR, Call Buyer, Reserve $). Step 4–5 = Auto (Testing, LC). Step 6 = Your job (Release).
-        </p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0 px-4 pb-4">
         <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2">
           {SIX_STEPS.map((label, index) => {
             const stepNum = index + 1;
@@ -38,14 +35,16 @@ export function Stepper6({ activeStep, onStepChange }: Stepper6Props) {
               >
                 <button
                   type="button"
-                  className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold shadow-lg transition-all cursor-pointer ${
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold shadow-lg transition-all ${
+                    stepNum <= activeStep ? "cursor-pointer" : "cursor-default"
+                  } ${
                     isActive
                       ? "bg-gradient-to-r from-[#A855F7] to-purple-500 text-white shadow-[#A855F7]/50 scale-110"
                       : isCompleted
                         ? "bg-emerald-500 text-white shadow-emerald-500/50 hover:opacity-90"
                         : "bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600 hover:ring-2 hover:ring-[#A855F7]/50"
                   }`}
-                  onClick={() => onStepChange?.(stepNum)}
+                  onClick={() => stepNum <= activeStep && onStepChange?.(stepNum)}
                 >
                   {isCompleted ? "✓" : stepNum}
                 </button>

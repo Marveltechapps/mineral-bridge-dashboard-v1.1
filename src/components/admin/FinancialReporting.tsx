@@ -20,12 +20,18 @@ export function FinancialReporting({
   onOpenOrderDetail,
   onNavigateToEnquiries,
   onOpenLogisticsDetail,
+  onNavigateToTransactionsPage,
+  onNavigateToTab,
 }: {
   onOpenOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
   /** Open Enquiry & Support (for transactions/orders needing help). */
   onNavigateToEnquiries?: () => void;
   /** Open Logistics & details page for an order (from Incoterms table). */
   onOpenLogisticsDetail?: (orderId: string) => void;
+  /** Open the full Transactions page (master hub with 6-step flow links). */
+  onNavigateToTransactionsPage?: () => void;
+  /** Navigate to another Financial tab (e.g. from InterconnectLinks). */
+  onNavigateToTab?: () => void;
 }) {
   const { state } = useDashboardStore();
   const openEnquiriesCount = useMemo(() => state.enquiries.filter((e) => e.status !== "Resolved").length, [state.enquiries]);
@@ -183,7 +189,11 @@ export function FinancialReporting({
       {/* 7 Tabs - controlled so the active button reflects the visible page */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FinancialTab)} className="w-full">
         <TabsList className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex-wrap h-auto gap-1 p-1">
-          <TabsTrigger value="transactions" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger
+            value="transactions"
+            className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white data-[state=active]:shadow-md"
+            onClick={() => onNavigateToTransactionsPage?.()}
+          >
             <LayoutGrid className="h-4 w-4" />
             Transactions
           </TabsTrigger>
@@ -212,6 +222,16 @@ export function FinancialReporting({
         </TabsList>
 
         <TabsContent value="transactions" className="mt-4">
+          {onNavigateToTransactionsPage && (
+            <div className="mb-4 p-4 rounded-lg border-2 border-[#A855F7]/30 bg-purple-50/50 dark:bg-purple-950/20 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                Open the full <strong>Transactions</strong> page to see all TX records and run the 6-step flow (Send QR → Call Buyer → Reserve → Testing → LC → Release).
+              </p>
+              <Button onClick={onNavigateToTransactionsPage} className="bg-[#A855F7] hover:bg-purple-600 text-white shrink-0">
+                Open Transactions Page →
+              </Button>
+            </div>
+          )}
           <TransactionsDashboard onOpenOrderDetail={onOpenOrderDetail} />
         </TabsContent>
 

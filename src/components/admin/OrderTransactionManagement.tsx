@@ -61,7 +61,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useAllOrders, useDashboardStore, getRegistryUserName, getOrderIsInternational, getTransactionIsInternational } from "../../store/dashboardStore";
 import type { Order, Transaction } from "../../store/dashboardStore";
 import { toast } from "sonner";
-import { TransactionStepper } from "./orders/TransactionStepper";
 import { Stepper6 } from "./orders/Stepper6";
 import { OrderTable } from "./orders/OrderTable";
 import { SettlementsTab } from "./orders/SettlementsTab";
@@ -86,6 +85,8 @@ function computeFlowStepsForOrder(order: Order, newStatus: string): { label: str
 
 export interface OrderTransactionManagementProps {
   initialTransactionId?: string;
+  /** When opening the order sheet, open this tab (e.g. "testing" for Testing & Docs). */
+  initialSheetTab?: string;
   /** Open full order detail page (Buyer/Seller management). */
   onOpenFullOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
   /** Navigate to Enquiry & Support (e.g. after Call Buyer). */
@@ -96,8 +97,12 @@ export interface OrderTransactionManagementProps {
   onNavigateToLogistics?: (orderId?: string) => void;
 }
 
+const SHEET_TABS = ["overview", "flow", "communication", "testing", "sent", "transaction"] as const;
+type SheetTab = (typeof SHEET_TABS)[number];
+
 export function OrderTransactionManagement({
   initialTransactionId,
+  initialSheetTab,
   onOpenFullOrderDetail,
   onNavigateToEnquiries,
   onNavigateToFinance,
@@ -106,8 +111,11 @@ export function OrderTransactionManagement({
   const { state, dispatch } = useDashboardStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [orderForView, setOrderForView] = useState<Order | null>(null);
+  const [sheetTab, setSheetTab] = useState<SheetTab>("overview");
   const [orderForStatus, setOrderForStatus] = useState<Order | null>(null);
   const [orderForCancel, setOrderForCancel] = useState<Order | null>(null);
+  const [orderForReserve, setOrderForReserve] = useState<Order | null>(null);
+  const [releaseConfirmTx, setReleaseConfirmTx] = useState<Transaction | null>(null);
   const [newStatus, setNewStatus] = useState<string>("");
   const [mainTab, setMainTab] = useState<"orders" | "settlements">("orders");
   const [activeStep6, setActiveStep6] = useState(1);
@@ -126,9 +134,11 @@ export function OrderTransactionManagement({
       setMainTab("settlements");
       const order = allOrders.find((o) => o.id === tx.orderId);
       if (order) setOrderForView(order);
+      const tab = initialSheetTab && SHEET_TABS.includes(initialSheetTab as SheetTab) ? (initialSheetTab as SheetTab) : "overview";
+      setSheetTab(tab);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only react to initialTransactionId
-  }, [initialTransactionId]);
+  }, [initialTransactionId, initialSheetTab]);
   const orders = useMemo(() => {
     let list = allOrders;
     if (searchTerm.trim()) {
@@ -199,77 +209,80 @@ export function OrderTransactionManagement({
         payload: { ...order, status: "Completed", flowSteps, currentStep: 6 },
       });
     }
+    setReleaseConfirmTx(null);
     toast.success("Payment released", { description: `${tx.finalAmount} sent. Order ${tx.orderId} completed.` });
+  };
+
+  const handleCallBuyer = (order: Order) => {
+    const phone = order.contactInfo?.phone ?? state.registryUsers.find((u) => u.id === order.userId)?.phone;
+    const name = order.contactInfo?.name ?? state.registryUsers.find((u) => u.id === order.userId)?.name ?? "Buyer";
+    if (phone?.trim()) {
+      window.open(`tel:${phone.trim().replace(/\s/g, "")}`, "_self");
+      dispatch({ type: "SET_ORDER_CURRENT_STEP", payload: { orderId: order.id, type: "Buy", step: 2 } });
+      toast.success(`Opening call to ${name}`, { description: "Step 2 in progress" });
+    } else {
+      toast.error("No phone number", { description: "Add buyer phone in order or registry to call." });
+    }
+  };
+
+  const handleReserveConfirm = () => {
+    if (!orderForReserve) return;
+    const value = orderForReserve.orderSummary?.total ?? orderForReserve.aiEstimatedAmount ?? "—";
+    dispatch({
+      type: "UPDATE_ORDER",
+      payload: { ...orderForReserve, escrowStatus: "Reserved", currentStep: 3 },
+    });
+    dispatch({ type: "SET_ORDER_CURRENT_STEP", payload: { orderId: orderForReserve.id, type: "Buy", step: 3 } });
+    toast.success(`${value} reserved`, { description: "Escrow reserved. Step 3 complete." });
+    setOrderForReserve(null);
   };
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Orders & Settlements</h1>
-          <p className="text-muted-foreground mt-1">
-            Your control panel: every button works, every number updates. Send QR → Call buyer → Reserve $ → Release payment.
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Orders & Settlements</h1>
         <div className="flex gap-3">
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2">
             <Calendar className="w-4 h-4" />
             Date Range
           </Button>
-          <Button className="bg-[#A855F7] hover:bg-purple-600 text-white gap-2">
+          <Button size="sm" className="bg-[#A855F7] hover:bg-purple-600 text-white gap-2">
             <Download className="w-4 h-4" />
-            Export Report
+            Export
           </Button>
         </div>
       </div>
 
-      {/* What really happens here - non-technical intro */}
-      <Card className="border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
-        <CardContent className="p-4">
-          <p className="text-sm font-medium text-slate-900 dark:text-white mb-2">Your job as admin (step by step)</p>
-          <p className="text-xs text-muted-foreground">
-            1️⃣ Customer submits order → appears in your dashboard. 2️⃣ You click &quot;Send QR&quot; → they scan and see next steps. 3️⃣ You click &quot;Call Buyer&quot; → discuss price/logistics. 4️⃣ You click &quot;Reserve $&quot; → money locked in escrow. 5️⃣ System handles testing/LC → you approve. 6️⃣ You click &quot;Release Payment&quot; in Settlements tab → deal done.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Top metrics - quick status check */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-slate-200 dark:border-slate-700">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">Total volume (settled)</p>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <CardContent className="p-3 flex flex-col gap-0.5">
+            <p className="text-xs text-muted-foreground">Total volume</p>
+            <p className="text-xl font-bold text-slate-900 dark:text-white">
               ${totalSettled >= 1e6 ? (totalSettled / 1e6).toFixed(2) + "M" : totalSettled.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-            </h3>
-            <p className="text-[10px] text-muted-foreground mt-1">Total money in your system (safe)</p>
+            </p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 dark:border-slate-700">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">Pending settlements</p>
-            <h3 className="text-2xl font-bold text-amber-600">{pendingCount}</h3>
-            <p className="text-[10px] text-muted-foreground mt-1">Payment ready to release</p>
+          <CardContent className="p-3 flex flex-col gap-0.5">
+            <p className="text-xs text-muted-foreground">Active</p>
+            <p className="text-xl font-bold text-blue-600">{activeOrdersCount}</p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 dark:border-slate-700">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">Active orders</p>
-            <h3 className="text-2xl font-bold text-blue-600">{activeOrdersCount}</h3>
-            <p className="text-[10px] text-muted-foreground mt-1">Orders waiting for your action</p>
+          <CardContent className="p-3 flex flex-col gap-0.5">
+            <p className="text-xs text-muted-foreground">Pending release</p>
+            <p className="text-xl font-bold text-amber-600">{pendingCount}</p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 dark:border-slate-700">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">Disputed orders</p>
-            <h3 className="text-2xl font-bold text-red-600">{state.disputes.length}</h3>
-            <p className="text-[10px] text-muted-foreground mt-1">Problems need your attention</p>
+          <CardContent className="p-3 flex flex-col gap-0.5">
+            <p className="text-xs text-muted-foreground">Disputed</p>
+            <p className="text-xl font-bold text-red-600">{state.disputes.length}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* 6-step pipeline (visual progress bar) */}
       <Stepper6 activeStep={activeStep6} onStepChange={setActiveStep6} />
-      <TransactionStepper />
 
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "orders" | "settlements")} className="w-full">
         <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -293,8 +306,8 @@ export function OrderTransactionManagement({
             onScopeFilterChange={(v) => setInternationalFilter(v)}
             onOpenDetails={setOrderForView}
             onOpenFullOrderDetail={onOpenFullOrderDetail}
-            onCallBuyer={(order) => onNavigateToEnquiries?.(order.userId)}
-            onReserveEscrow={() => onNavigateToFinance?.()}
+            onCallBuyer={handleCallBuyer}
+            onReserveEscrow={(order) => setOrderForReserve(order)}
             onTrack={(order) => onNavigateToLogistics?.(order.id)}
             onRelease={(order) => {
               const tx = state.transactions.find((t) => t.orderId === order.id);
@@ -308,7 +321,7 @@ export function OrderTransactionManagement({
 
         <TabsContent value="settlements" className="mt-6 space-y-6">
           <SettlementsTab
-            onReleasePayment={handleReleasePayment}
+            onReleasePaymentRequest={(tx) => setReleaseConfirmTx(tx)}
             onOpenOrderDetail={onOpenFullOrderDetail}
           />
           <Card className="border-slate-200 dark:border-slate-700">
@@ -441,15 +454,49 @@ export function OrderTransactionManagement({
         </TabsContent>
       </Tabs>
 
-      {/* Daily routine - 5 minutes */}
-      <Card className="border-slate-200 dark:border-slate-700 bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-200/50 dark:border-emerald-800/30">
-        <CardContent className="p-4">
-          <p className="text-sm font-medium text-slate-900 dark:text-white mb-2">Daily routine (about 5 minutes)</p>
-          <p className="text-xs text-muted-foreground">
-            1. Check &quot;Active orders&quot; → go to All Orders. 2. Find &quot;Awaiting Team Contact&quot; → click Send QR. 3. Find &quot;Pending settlements&quot; → click Release Payment. 4. Check &quot;Disputed&quot; → fix problems. 5. Done.
-          </p>
-        </CardContent>
-      </Card>
+      {/* Reserve escrow confirmation */}
+      <AlertDialog open={!!orderForReserve} onOpenChange={(open) => { if (!open) setOrderForReserve(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reserve in escrow?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {orderForReserve && (
+                <>
+                  Reserve {orderForReserve.orderSummary?.total ?? orderForReserve.aiEstimatedAmount ?? "—"} for order {orderForReserve.id}? Money will be marked as reserved and step 3 complete.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReserveConfirm} className="bg-[#A855F7] hover:bg-purple-600">
+              Reserve $
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Release payment confirmation */}
+      <AlertDialog open={!!releaseConfirmTx} onOpenChange={(open) => { if (!open) setReleaseConfirmTx(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Release payment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {releaseConfirmTx && (
+                <>
+                  Release {releaseConfirmTx.finalAmount} to seller for order {releaseConfirmTx.orderId}? This will complete the settlement and mark the order done.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => releaseConfirmTx && handleReleasePayment(releaseConfirmTx)} className="bg-emerald-600 hover:bg-emerald-700">
+              Release Payment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Full order details – same depth as User Management detail flow */}
       <Sheet open={!!orderForView} onOpenChange={(open) => { if (!open) setOrderForView(null); }}>
@@ -489,7 +536,7 @@ export function OrderTransactionManagement({
                         {onOpenFullOrderDetail && (
                           <Button variant="default" size="sm" className="bg-emerald-600 hover:bg-emerald-700 gap-1.5" onClick={() => { onOpenFullOrderDetail(orderForView.id, orderForView.type === "Buy" ? "buy" : "sell"); setOrderForView(null); }}>
                             <ExternalLink className="h-4 w-4" />
-                            Open in Order detail
+                            View Order
                           </Button>
                         )}
                         <Button variant="outline" size="sm" onClick={() => { setOrderForStatus(orderForView); setOrderForView(null); }}>
@@ -507,7 +554,7 @@ export function OrderTransactionManagement({
                   </SheetHeader>
                 </div>
 
-                <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0">
+                <Tabs value={sheetTab} onValueChange={(v) => setSheetTab(v as SheetTab)} className="flex-1 flex flex-col min-h-0">
                   <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg mx-6 mt-4 w-auto">
                     <TabsTrigger value="overview" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
                       <Gem className="h-4 w-4" />

@@ -199,7 +199,13 @@ export function OrderTable({
                         ) : (
                           <>
                             {order.type === "Buy" ? (
-                              <BuyActions order={order} onCallBuyer={onCallBuyer} onReserveEscrow={onReserveEscrow} />
+                              <BuyActions
+                                order={order}
+                                onCallBuyer={onCallBuyer}
+                                onReserveEscrow={onReserveEscrow}
+                                dispatch={dispatch}
+                                onStepComplete={onStepComplete}
+                              />
                             ) : (
                               <SellActions order={order} onTrack={onTrack} onRelease={onRelease} dispatch={dispatch} />
                             )}

@@ -126,10 +126,10 @@ export function DashboardLayout({ children, currentView = "dashboard", onViewCha
                   <div className="flex flex-col">
                     <SidebarMenuButton 
                       asChild 
-                      isActive={item.view === currentView || (currentView === "sell-order-detail" && item.view === "sell-minerals") || (currentView === "buy-order-detail" && item.view === "minerals") || (currentView === "mineral-detail" && item.view === "minerals") || (currentView === "mineral-form" && item.view === "minerals")}
+                      isActive={item.view === currentView || (currentView === "orders-order-detail" && item.view === "orders") || (currentView === "sell-order-detail" && item.view === "sell-minerals") || (currentView === "buy-order-detail" && item.view === "minerals") || (currentView === "mineral-detail" && item.view === "minerals") || (currentView === "mineral-form" && item.view === "minerals")}
                       tooltip={item.label}
                       className={`
-                        ${item.view === currentView 
+                        ${(item.view === currentView || (currentView === "orders-order-detail" && item.view === "orders") || (currentView === "sell-order-detail" && item.view === "sell-minerals") || (currentView === "buy-order-detail" && item.view === "minerals") || (currentView === "mineral-detail" && item.view === "minerals") || (currentView === "mineral-form" && item.view === "minerals"))
                           ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400' 
                           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                         }
@@ -138,13 +138,13 @@ export function DashboardLayout({ children, currentView = "dashboard", onViewCha
                       <button 
                         onClick={() => onViewChange?.(item.view)}
                         className={`flex items-center space-x-3 px-4 py-2.5 w-full text-left rounded-lg transition-all duration-200 ${
-                          (item.view === currentView || (currentView === "sell-order-detail" && item.view === "sell-minerals") || (currentView === "buy-order-detail" && item.view === "minerals") || (currentView === "mineral-detail" && item.view === "minerals") || (currentView === "mineral-form" && item.view === "minerals"))
+                          (item.view === currentView || (currentView === "orders-order-detail" && item.view === "orders") || (currentView === "sell-order-detail" && item.view === "sell-minerals") || (currentView === "buy-order-detail" && item.view === "minerals") || (currentView === "mineral-detail" && item.view === "minerals") || (currentView === "mineral-form" && item.view === "minerals"))
                             ? '!bg-emerald-600 !text-white shadow-md' 
                             : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'
                         }`}
                       >
-                        <item.icon className={`h-4 w-4 transition-colors ${(item.view === currentView || (currentView === "sell-order-detail" && item.view === "sell-minerals") || (currentView === "buy-order-detail" && item.view === "minerals") || (currentView === "mineral-detail" && item.view === "minerals") || (currentView === "mineral-form" && item.view === "minerals")) ? '!text-white' : 'text-slate-400'}`} />
-                        <span className={`text-sm font-medium transition-colors flex-1 truncate ${(item.view === currentView || (currentView === "sell-order-detail" && item.view === "sell-minerals") || (currentView === "buy-order-detail" && item.view === "minerals") || (currentView === "mineral-detail" && item.view === "minerals") || (currentView === "mineral-form" && item.view === "minerals")) ? '!text-white' : ''}`}>{item.label}</span>
+                        <item.icon className={`h-4 w-4 transition-colors ${(item.view === currentView || (currentView === "orders-order-detail" && item.view === "orders") || (currentView === "sell-order-detail" && item.view === "sell-minerals") || (currentView === "buy-order-detail" && item.view === "minerals") || (currentView === "mineral-detail" && item.view === "minerals") || (currentView === "mineral-form" && item.view === "minerals")) ? '!text-white' : 'text-slate-400'}`} />
+                        <span className={`text-sm font-medium transition-colors flex-1 truncate ${(item.view === currentView || (currentView === "orders-order-detail" && item.view === "orders") || (currentView === "sell-order-detail" && item.view === "sell-minerals") || (currentView === "buy-order-detail" && item.view === "minerals") || (currentView === "mineral-detail" && item.view === "minerals") || (currentView === "mineral-form" && item.view === "minerals")) ? '!text-white' : ''}`}>{item.label}</span>
                       </button>
                     </SidebarMenuButton>
                     

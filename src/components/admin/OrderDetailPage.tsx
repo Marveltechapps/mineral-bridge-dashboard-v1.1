@@ -25,6 +25,12 @@ import {
   Truck,
   ExternalLink,
   Globe,
+  ListOrdered,
+  Phone,
+  DollarSign,
+  CheckCircle,
+  FlaskConical,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -98,7 +104,13 @@ function getFlowStepsForDisplay(order: Order, orderType: OrderDetailType): FlowS
   if (status === "Cancelled") {
     return stepLabels.map((label) => ({ label, completed: false, active: false }));
   }
-  const statusToStep = status === "Completed" ? "Order Completed" : status;
+  // Map API/store status to step label (Completed → "Order Completed"; "Submitted" → "Order Submitted")
+  const statusToStep =
+    status === "Completed"
+      ? "Order Completed"
+      : status === "Submitted"
+        ? "Order Submitted"
+        : status;
   const activeIndex = stepLabels.indexOf(statusToStep);
   return stepLabels.map((label, i) => ({
     label,
@@ -122,7 +134,8 @@ export interface OrderDetailPageProps {
   type: OrderDetailType;
   onBack: () => void;
   onNavigateToUser?: (userId: string) => void;
-  onNavigateToOrders?: (transactionId?: string) => void;
+  /** Navigate to Orders & Settlements. If openTab is "testing", the order sheet opens with Testing & Docs tab. */
+  onNavigateToOrders?: (transactionId?: string, openTab?: string) => void;
   onNavigateToEnquiries?: (userId?: string) => void;
   onNavigateToDisputes?: (orderId?: string) => void;
   onNavigateToLogistics?: (orderId?: string) => void;
@@ -144,6 +157,7 @@ export function OrderDetailPage({
   const [newStatus, setNewStatus] = useState<string>("");
   const [addCommOpen, setAddCommOpen] = useState(false);
   const [commEvent, setCommEvent] = useState("");
+  const [activeDetailTab, setActiveDetailTab] = useState<string>("detail");
   const [commNote, setCommNote] = useState("");
   const [commAdmin, setCommAdmin] = useState("Admin");
   const [commContactMethod, setCommContactMethod] = useState<"Email" | "Mobile" | "">("");
@@ -377,36 +391,14 @@ export function OrderDetailPage({
         </CardContent>
       </Card>
 
-      {/* Order progress (card style - flow lives in Orders & Settlements; here only a summary) */}
-      <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Order progress</CardTitle>
-          <CardDescription>Current step for this order. Full pipeline is in Orders &amp; Settlements.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap items-center gap-2">
-            {flowStepsForPipeline.map((s, i) => (
-              <div key={s.label} className="flex items-center gap-1.5 flex-shrink-0">
-                <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-semibold ${
-                    s.completed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : s.active ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                  }`}
-                >
-                  {s.completed ? "✓" : i + 1}
-                </div>
-                <span className={`text-xs font-medium max-w-[90px] truncate ${s.active ? "text-slate-900 dark:text-white" : "text-muted-foreground"}`}>{s.label}</span>
-                {i < flowStepsForPipeline.length - 1 && <span className="text-muted-foreground/60 mx-0.5">→</span>}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tabs: Detail (single detailed view), Financial, Activity - no duplicate flow from other sections */}
-      <Tabs defaultValue="detail" className="w-full">
+      {/* Tabs: Order progress, Detail, Financial, Activity (controlled so step cards can switch tab) */}
+      <Tabs value={activeDetailTab} onValueChange={setActiveDetailTab} className="w-full">
         <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 gap-1 rounded-lg w-auto">
           <TabsTrigger value="detail" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
             <Gem className="h-4 w-4" /> Order detail
+          </TabsTrigger>
+          <TabsTrigger value="progress" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
+            <ListOrdered className="h-4 w-4" /> Order progress
           </TabsTrigger>
           <TabsTrigger value="transaction" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400 gap-2">
             <CreditCard className="h-4 w-4" /> Financial &amp; transaction
@@ -417,6 +409,314 @@ export function OrderDetailPage({
         </TabsList>
 
         <div className="mt-4 space-y-6">
+          <TabsContent value="progress" className="mt-0 space-y-6">
+            {/* Progress summary – same pattern as Sell Management Orders tab */}
+            <Card className="border-none shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Order progress</CardTitle>
+                <CardDescription className="text-xs">Current step for this order. Full pipeline is in Orders &amp; Settlements.</CardDescription>
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  {flowStepsForPipeline.map((s, i) => (
+                    <span
+                      key={s.label}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium ${
+                        s.completed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : s.active ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                      }`}
+                    >
+                      {s.completed ? "✓" : i + 1} {s.label}
+                    </span>
+                  ))}
+                </div>
+              </CardHeader>
+            </Card>
+
+            {/* Step detail cards – clickable, navigate to related tab or dashboard section */}
+            {flowStepsForPipeline.map((s, i) => {
+              const registryUser = order.userId ? state.registryUsers.find((u) => u.id === order.userId) : null;
+              const contactName = order.contactInfo?.name ?? registryUser?.name ?? "—";
+              const contactPhone = order.contactInfo?.phone ?? registryUser?.phone ?? "—";
+              const contactEmail = order.contactInfo?.email ?? registryUser?.email ?? "—";
+              const stepBadge = s.completed ? "Completed" : s.active ? "Current" : "Pending";
+              const handleStepClick = () => {
+                if (s.label === "Order Submitted") setActiveDetailTab("detail");
+                else if (s.label === "Awaiting Team Contact") onNavigateToEnquiries?.(order.userId);
+                else if (s.label === "Sample Test Required") onNavigateToOrders?.(relatedTx?.id, "testing");
+                else if (s.label === "Price Confirmed" || s.label === "Payment Initiated") setActiveDetailTab("transaction");
+                else if (s.label === "Order Completed") setActiveDetailTab("activity");
+              };
+              const goToLabel =
+                s.label === "Order Submitted" ? "Go to Order detail" :
+                s.label === "Awaiting Team Contact" ? "Go to Enquiry & Support" :
+                s.label === "Sample Test Required" ? "Go to Orders & Settlements → Testing & Docs" :
+                s.label === "Price Confirmed" || s.label === "Payment Initiated" ? "Go to Financial & transaction" :
+                s.label === "Order Completed" ? "Go to Activity & docs" : null;
+              return (
+                <Card
+                  key={s.label}
+                  role="button"
+                  tabIndex={0}
+                  className={`border-none shadow-sm cursor-pointer transition-all hover:shadow-md hover:ring-2 hover:ring-emerald-400/30 dark:hover:ring-emerald-500/20 ${s.active ? "ring-2 ring-amber-400/50 dark:ring-amber-500/30 ring-offset-2 dark:ring-offset-slate-900" : ""}`}
+                  onClick={(e) => { e.preventDefault(); handleStepClick(); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleStepClick(); } }}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <CardTitle className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span className="flex items-center justify-center w-7 h-7 rounded-lg text-xs font-semibold shrink-0 bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                          {s.completed ? "✓" : i + 1}
+                        </span>
+                        {s.label}
+                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className={s.completed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0" : s.active ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-0"}>
+                          {stepBadge}
+                        </Badge>
+                        {goToLabel && (
+                          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                            {goToLabel}
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {s.label === "Order Submitted" && (
+                      <>
+                        <CardDescription className="text-xs">Submission details · user and contact for this order.</CardDescription>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Order ID</Label>
+                            <p className="font-mono text-xs font-medium text-emerald-600 dark:text-emerald-400">{order.id}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Created</Label>
+                            <p className="font-medium text-sm">{order.createdAt}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">User</Label>
+                            <p className="font-medium text-sm">{getRegistryUserName(state.registryUsers, order.userId)}</p>
+                            {order.userId && <p className="font-mono text-xs text-muted-foreground">{order.userId}</p>}
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Phone</Label>
+                            <p className="font-medium text-sm">{contactPhone}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Email</Label>
+                            <p className="font-medium text-sm break-all">{contactEmail}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Mineral / Qty</Label>
+                            <p className="font-medium text-sm">{order.mineral} · {order.qty} {order.unit}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Amount</Label>
+                            <p className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">{order.aiEstimatedAmount} {order.currency}</p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    {s.label === "Awaiting Team Contact" && (
+                      <>
+                        <CardDescription className="text-xs flex items-center gap-1.5">
+                          <Phone className="h-3.5 w-3.5" />
+                          Contact details for follow-up (call / email / enquiry).
+                        </CardDescription>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Name</Label>
+                            <p className="font-medium text-sm">{contactName}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Phone</Label>
+                            <p className="font-medium text-sm">{contactPhone}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Email</Label>
+                            <p className="font-medium text-sm break-all">{contactEmail}</p>
+                          </div>
+                          {(order.contactInfo?.companyName ?? registryUser?.role) && (
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Company / Role</Label>
+                              <p className="font-medium text-sm">{order.contactInfo?.companyName ?? registryUser?.role ?? "—"}</p>
+                            </div>
+                          )}
+                        </div>
+                        {order.commLog?.length > 0 && (
+                          <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                            <Label className="text-xs text-muted-foreground">Contact log</Label>
+                            <ul className="mt-1.5 space-y-1.5 text-xs">
+                              {order.commLog.slice(0, 5).map((entry, idx) => (
+                                <li key={idx} className="flex flex-wrap gap-x-2 gap-y-0">
+                                  <span className="font-medium text-slate-900 dark:text-slate-100">{entry.event}</span>
+                                  <span className="text-muted-foreground">{entry.admin} · {entry.date}</span>
+                                  {entry.contactMethod && <span className="text-muted-foreground">({entry.contactMethod})</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {s.label === "Sample Test Required" && (
+                      <>
+                        <CardDescription className="text-xs flex items-center gap-1.5">
+                          <FlaskConical className="h-3.5 w-3.5" />
+                          Testing &amp; certification (Sell flow). Document upload, testing quantity, lab and result. Click card to open Financial &amp; transaction tab.
+                        </CardDescription>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Testing quantity</Label>
+                            <p className="font-medium text-sm">{order.qty} {order.unit}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Lab</Label>
+                            <p className="font-medium text-sm">{order.testingLab ?? "—"}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Result summary</Label>
+                            <p className="font-medium text-sm">{order.testingResultSummary ?? "—"}</p>
+                          </div>
+                          {order.testingReportReceivedAt && (
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Report received</Label>
+                              <p className="font-medium text-sm">{order.testingReportReceivedAt}</p>
+                            </div>
+                          )}
+                        </div>
+                        {order.testingReqs && order.testingReqs.length > 0 && (
+                          <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                            <Label className="text-xs text-muted-foreground">Document upload / requirements</Label>
+                            <ul className="mt-1.5 space-y-1.5">
+                              {order.testingReqs.map((req, i) => (
+                                <li key={i} className="flex items-center justify-between text-sm">
+                                  <span className="font-medium text-slate-900 dark:text-slate-100">{req.label}</span>
+                                  <Badge
+                                    variant="secondary"
+                                    className={req.status === "Uploaded" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0 text-xs" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0 text-xs"}
+                                  >
+                                    {req.status}
+                                  </Badge>
+                                </li>
+                              ))}
+                            </ul>
+                            <p className="text-xs text-muted-foreground mt-2">Add requirements and mark as uploaded in Financial &amp; transaction tab.</p>
+                          </div>
+                        )}
+                        {(!order.testingReqs || order.testingReqs.length === 0) && (
+                          <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                            <Label className="text-xs text-muted-foreground">Document upload / requirements</Label>
+                            <p className="text-sm text-muted-foreground mt-1">No requirements yet. Click this card to go to Financial &amp; transaction → add document types and mark as uploaded.</p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {s.label === "Price Confirmed" && (
+                      <>
+                        <CardDescription className="text-xs flex items-center gap-1.5">
+                          <DollarSign className="h-3.5 w-3.5" />
+                          Confirmed price &amp; breakdown. Use Financial &amp; transaction tab for full summary.
+                        </CardDescription>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between font-medium text-sm">
+                            <span className="text-muted-foreground">Amount</span>
+                            <span className="text-emerald-600 dark:text-emerald-400">{order.aiEstimatedAmount} {order.currency}</span>
+                          </div>
+                          {order.orderSummary && (
+                            <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-2">
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>{order.orderSummary.subtotalLabel ? `Subtotal (${order.orderSummary.subtotalLabel})` : "Subtotal"}</span>
+                                <span>{order.orderSummary.subtotal} {order.orderSummary.currency}</span>
+                              </div>
+                              {order.orderSummary.tax != null && order.orderSummary.tax !== undefined && (
+                                <div className="flex justify-between text-sm text-muted-foreground">
+                                  <span>Tax</span>
+                                  <span>{order.orderSummary.tax} {order.orderSummary.currency}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>Secure Transport</span>
+                                <span>{order.orderSummary.shippingCost} {order.orderSummary.currency}</span>
+                              </div>
+                              {order.orderSummary.platformFee != null && order.orderSummary.platformFee !== undefined && (
+                                <div className="flex justify-between text-sm text-muted-foreground">
+                                  <span>Platform Fee{order.orderSummary.platformFeePercent != null ? ` (${order.orderSummary.platformFeePercent}%)` : ""}</span>
+                                  <span>{order.orderSummary.platformFee} {order.orderSummary.currency}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between font-semibold text-sm text-emerald-600 dark:text-emerald-400 pt-1">
+                                <span>Total</span>
+                                <span>{order.orderSummary.total} {order.orderSummary.currency}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                    {s.label === "Payment Initiated" && (
+                      <>
+                        <CardDescription className="text-xs flex items-center gap-1.5">
+                          <CreditCard className="h-3.5 w-3.5" />
+                          Payment &amp; escrow. Use Financial &amp; transaction tab for bank details.
+                        </CardDescription>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Payment method</Label>
+                            <p className="font-medium text-sm">{order.paymentMethod ?? "—"}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Escrow status</Label>
+                            <p className="font-medium text-sm">{order.escrowStatus ?? "—"}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Amount</Label>
+                            <p className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">{order.aiEstimatedAmount} {order.currency}</p>
+                          </div>
+                          {order.paymentTerms && (
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Payment terms</Label>
+                              <p className="font-medium text-sm">{order.paymentTerms}</p>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                    {s.label === "Order Completed" && (
+                      <>
+                        <CardDescription className="text-xs flex items-center gap-1.5">
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          Completion details. Order closed; use Activity &amp; docs for history.
+                        </CardDescription>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Status</Label>
+                            <p className="font-medium text-sm">{order.status}</p>
+                          </div>
+                          {order.lcNumber && (
+                            <div>
+                              <Label className="text-xs text-muted-foreground">LC number</Label>
+                              <p className="font-mono text-sm font-medium">{order.lcNumber}</p>
+                            </div>
+                          )}
+                          {order.lcCreditedAt && (
+                            <div>
+                              <Label className="text-xs text-muted-foreground">LC credited</Label>
+                              <p className="font-medium text-sm">{order.lcCreditedAt}</p>
+                            </div>
+                          )}
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Final amount</Label>
+                            <p className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">{order.aiEstimatedAmount} {order.currency}</p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </TabsContent>
           <TabsContent value="detail" className="mt-0 space-y-6">
             <Card className="border-none shadow-sm">
               <CardHeader className="pb-2">

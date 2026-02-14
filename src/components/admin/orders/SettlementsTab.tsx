@@ -14,12 +14,13 @@ import { useDashboardStore, getRegistryUserName } from "../../../store/dashboard
 import type { Transaction } from "../../../store/dashboardStore";
 
 export interface SettlementsTabProps {
-  onReleasePayment?: (tx: Transaction) => void;
+  /** Called when user clicks Release Payment (parent shows confirm dialog then releases). */
+  onReleasePaymentRequest?: (tx: Transaction) => void;
   onOpenOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
 }
 
 export function SettlementsTab({
-  onReleasePayment,
+  onReleasePaymentRequest,
   onOpenOrderDetail,
 }: SettlementsTabProps) {
   const { state } = useDashboardStore();
@@ -95,7 +96,7 @@ export function SettlementsTab({
                         <Button
                           size="sm"
                           className="bg-[#A855F7] hover:bg-purple-600"
-                          onClick={() => onReleasePayment?.(tx)}
+                          onClick={() => onReleasePaymentRequest?.(tx)}
                         >
                           Release Payment
                         </Button>

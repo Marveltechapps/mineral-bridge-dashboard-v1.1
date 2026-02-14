@@ -49,28 +49,37 @@ export function BuyFlow6({
 
   const handleStep2 = async () => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
+    const phone = order.contactInfo?.phone ?? "";
+    await new Promise((r) => setTimeout(r, 2000));
     setLoading(false);
-    toast.success(`Call logged for ${userName}`, { description: "Step 2 complete · Logged in Enquiry" });
-    onCallBuyer?.(order);
-    const nextStep = Math.min(currentStep + 1, 3);
-    dispatch?.({ type: "SET_ORDER_CURRENT_STEP", payload: { orderId: order.id, type: "Buy", step: nextStep } });
-    onStepComplete(2);
+    toast.success(`Call logged! ${userName} contacted. Step 2 COMPLETE!`, { description: "Step 3 (Reserve $) unlocked" });
+    dispatch?.({ type: "SET_ORDER_CURRENT_STEP", payload: { orderId: order.id, type: "Buy", step: 3 } });
+    onStepComplete(3);
+    if (phone?.trim()) {
+      window.open(`tel:${phone.trim().replace(/\s/g, "")}`, "_self");
+    } else if (onCallBuyer) {
+      onCallBuyer(order);
+    }
   };
 
-  const handleStep3 = async () => {
+  const handleStep3 = () => {
+    if (onReserveEscrow) {
+      onReserveEscrow(order);
+      return;
+    }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setLoading(false);
-    toast.success(`${value} reserved`, { description: "Escrow reserved in Financials" });
-    onReserveEscrow?.(order);
-    const nextStep = 3;
-    dispatch?.({ type: "SET_ORDER_CURRENT_STEP", payload: { orderId: order.id, type: "Buy", step: nextStep } });
-    dispatch?.({
-      type: "UPDATE_ORDER",
-      payload: { ...order, escrowStatus: "Reserved", currentStep: nextStep },
-    });
-    onStepComplete(3);
+    (async () => {
+      await new Promise((r) => setTimeout(r, 1500));
+      setLoading(false);
+      toast.success(`${value} reserved`, { description: "Escrow reserved in Financials" });
+      const nextStep = 3;
+      dispatch?.({ type: "SET_ORDER_CURRENT_STEP", payload: { orderId: order.id, type: "Buy", step: nextStep } });
+      dispatch?.({
+        type: "UPDATE_ORDER",
+        payload: { ...order, escrowStatus: "Reserved", currentStep: nextStep },
+      });
+      onStepComplete(3);
+    })();
   };
 
   return (
@@ -109,8 +118,15 @@ export function BuyFlow6({
         </>
       )}
       {currentStep === 2 && (
-        <Button onClick={handleStep2} className="w-full" disabled={loading}>
-          {loading ? "📞 Connecting..." : "📞 2. Call Buyer"}
+        <Button onClick={handleStep2} className="w-full h-14 text-base bg-[#A855F7] hover:bg-purple-600" disabled={loading}>
+          {loading ? (
+            <>
+              <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+              Calling {userName}...
+            </>
+          ) : (
+            `📞 Call ${userName}${order.contactInfo?.phone ? ` (${order.contactInfo.phone})` : ""}`
+          )}
         </Button>
       )}
       {currentStep === 3 && (

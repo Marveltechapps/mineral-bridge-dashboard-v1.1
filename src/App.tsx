@@ -14,8 +14,17 @@ import { MineralDetailPage } from "./components/admin/MineralDetailPage";
 import { MineralFormPage } from "./components/admin/MineralFormPage";
 import { ComplianceVerification } from "./components/admin/ComplianceVerification";
 import { OrderTransactionManagement } from "./components/admin/OrderTransactionManagement";
+import { OrderTransactionDetailPage } from "./components/admin/OrderTransactionDetailPage";
 import { EnquirySupportManagement } from "./components/admin/EnquiryManagement";
 import { FinancialReporting } from "./components/admin/FinancialReporting";
+import { FinancialTransactionsPage } from "./components/admin/Financial/FinancialTransactionsPage";
+import { SendQRPage } from "./components/admin/Financial/flow/SendQRPage";
+import { CallBuyerPage } from "./components/admin/Financial/flow/CallBuyerPage";
+import { ReserveEscrowPage } from "./components/admin/Financial/flow/ReserveEscrowPage";
+import { TestingPage } from "./components/admin/Financial/flow/TestingPage";
+import { LcIssuedPage } from "./components/admin/Financial/flow/LcIssuedPage";
+import { ReleasePaymentPage } from "./components/admin/Financial/flow/ReleasePaymentPage";
+import type { FinancialFlowStep } from "./lib/financialApi";
 import { ContentMarketing } from "./components/admin/ContentMarketing";
 import { AnalyticsInsights } from "./components/admin/Analytics";
 import { DisputesResolution } from "./components/admin/DisputesResolution";
@@ -32,7 +41,18 @@ type AuthView = "login" | "forgotPassword" | "requestAccess";
 
 type OrderDetailParams = { orderId: string; type: "sell" | "buy" } | null;
 
-type ViewParams = { selectedUserId?: string; selectedTransactionId?: string; selectedOrderId?: string; selectedMineralId?: string; selectedSubmissionId?: string };
+type ViewParams = {
+  selectedUserId?: string;
+  selectedTransactionId?: string;
+  selectedOrderId?: string;
+  selectedMineralId?: string;
+  selectedSubmissionId?: string;
+  /** Financial flow: transaction ID and which step page to show. */
+  selectedFinancialTransactionId?: string;
+  selectedFinancialFlowStep?: "send-qr" | "call-buyer" | "reserve-escrow" | "testing" | "lc-issued" | "release";
+  /** Orders & Settlements: open sheet with this tab (e.g. "testing"). */
+  ordersSheetTab?: string;
+};
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -125,7 +145,7 @@ export default function App() {
             setOrderDetail(null);
           }}
           onNavigateToUser={(userId) => navigateTo("users", { selectedUserId: userId })}
-          onNavigateToOrders={(transactionId) => navigateTo("orders", transactionId ? { selectedTransactionId: transactionId } : {})}
+          onNavigateToOrders={(transactionId, openTab) => navigateTo("orders", transactionId ? { selectedTransactionId: transactionId, ordersSheetTab: openTab } : {})}
           onNavigateToEnquiries={(userId) => navigateTo("enquiries", userId ? { selectedUserId: userId } : {})}
           onNavigateToDisputes={(orderId) => navigateTo("disputes", orderId ? { selectedOrderId: orderId } : {})}
           onNavigateToLogistics={(orderId) => navigateTo("logistics", orderId ? { selectedOrderId: orderId } : {})}
@@ -142,7 +162,7 @@ export default function App() {
             setOrderDetail(null);
           }}
           onNavigateToUser={(userId) => navigateTo("users", { selectedUserId: userId })}
-          onNavigateToOrders={(transactionId) => navigateTo("orders", transactionId ? { selectedTransactionId: transactionId } : {})}
+          onNavigateToOrders={(transactionId, openTab) => navigateTo("orders", transactionId ? { selectedTransactionId: transactionId, ordersSheetTab: openTab } : {})}
           onNavigateToEnquiries={(userId) => navigateTo("enquiries", userId ? { selectedUserId: userId } : {})}
           onNavigateToDisputes={(orderId) => navigateTo("disputes", orderId ? { selectedOrderId: orderId } : {})}
           onNavigateToLogistics={(orderId) => navigateTo("logistics", orderId ? { selectedOrderId: orderId } : {})}
@@ -230,9 +250,37 @@ export default function App() {
         return (
           <OrderTransactionManagement
             initialTransactionId={viewParams.selectedTransactionId}
+            initialSheetTab={viewParams.ordersSheetTab}
             onOpenFullOrderDetail={(orderId, orderType) => {
               setOrderDetail({ orderId, type: orderType });
-              setCurrentView(orderType === "sell" ? "sell-order-detail" : "buy-order-detail");
+              setCurrentView("orders-order-detail");
+            }}
+            onNavigateToEnquiries={(userId) => navigateTo("enquiries", userId ? { selectedUserId: userId } : {})}
+            onNavigateToFinance={() => setCurrentView("finance")}
+            onNavigateToLogistics={(orderId) => navigateTo("logistics", orderId ? { selectedOrderId: orderId } : {})}
+          />
+        );
+      case "orders-order-detail":
+        if (orderDetail?.orderId != null) {
+          return (
+            <OrderTransactionDetailPage
+              orderId={orderDetail.orderId}
+              type={orderDetail.type}
+              onBack={() => {
+                setCurrentView("orders");
+                setOrderDetail(null);
+              }}
+              onOpenFullOrderDetail={() => setCurrentView(orderDetail.type === "sell" ? "sell-order-detail" : "buy-order-detail")}
+            />
+          );
+        }
+        return (
+          <OrderTransactionManagement
+            initialTransactionId={viewParams.selectedTransactionId}
+            initialSheetTab={viewParams.ordersSheetTab}
+            onOpenFullOrderDetail={(orderId, orderType) => {
+              setOrderDetail({ orderId, type: orderType });
+              setCurrentView("orders-order-detail");
             }}
             onNavigateToEnquiries={(userId) => navigateTo("enquiries", userId ? { selectedUserId: userId } : {})}
             onNavigateToFinance={() => setCurrentView("finance")}
@@ -250,8 +298,68 @@ export default function App() {
             }}
             onNavigateToEnquiries={() => setCurrentView("enquiries")}
             onOpenLogisticsDetail={(orderId) => navigateTo("logistics", { selectedOrderId: orderId })}
+            onNavigateToTransactionsPage={() => navigateTo("finance-transactions", {})}
+            onNavigateToTab={() => setCurrentView("finance")}
           />
         );
+      case "finance-transactions":
+        return (
+          <FinancialTransactionsPage
+            onBackToDashboard={() => navigateTo("finance", {})}
+            onNavigateToTab={() => setCurrentView("finance")}
+            onNavigateToEnquiries={() => setCurrentView("enquiries")}
+            onOpenFlowStep={(txId, step) => {
+              const viewMap: Record<FinancialFlowStep, string> = {
+                "send-qr": "finance-send-qr",
+                "call-buyer": "finance-call-buyer",
+                "reserve-escrow": "finance-reserve-escrow",
+                "testing": "finance-testing",
+                "lc-issued": "finance-lc-issued",
+                "release": "finance-release",
+              };
+              navigateTo(viewMap[step], {
+                selectedFinancialTransactionId: txId,
+                selectedFinancialFlowStep: step,
+              });
+            }}
+          />
+        );
+      case "finance-send-qr":
+      case "finance-call-buyer":
+      case "finance-reserve-escrow":
+      case "finance-testing":
+      case "finance-lc-issued":
+      case "finance-release": {
+        const txId = viewParams.selectedFinancialTransactionId;
+        const step = viewParams.selectedFinancialFlowStep ?? "send-qr";
+        const goToStep = (s: FinancialFlowStep) => {
+          const viewMap: Record<FinancialFlowStep, string> = {
+            "send-qr": "finance-send-qr",
+            "call-buyer": "finance-call-buyer",
+            "reserve-escrow": "finance-reserve-escrow",
+            "testing": "finance-testing",
+            "lc-issued": "finance-lc-issued",
+            "release": "finance-release",
+          };
+          navigateTo(viewMap[s], { selectedFinancialTransactionId: txId ?? "", selectedFinancialFlowStep: s });
+        };
+        const backToTransactions = () => navigateTo("finance-transactions", {});
+        if (!txId) {
+          return (
+            <div className="p-6">
+              <p className="text-muted-foreground">No transaction selected.</p>
+              <button type="button" className="text-[#A855F7] underline mt-2" onClick={backToTransactions}>Back to Transactions</button>
+            </div>
+          );
+        }
+        const common = { transactionId: txId, onNavigateToStep: goToStep, onBackToTransactions: backToTransactions };
+        if (currentView === "finance-send-qr") return <SendQRPage {...common} />;
+        if (currentView === "finance-call-buyer") return <CallBuyerPage {...common} />;
+        if (currentView === "finance-reserve-escrow") return <ReserveEscrowPage {...common} />;
+        if (currentView === "finance-testing") return <TestingPage {...common} />;
+        if (currentView === "finance-lc-issued") return <LcIssuedPage {...common} />;
+        return <ReleasePaymentPage {...common} />;
+      }
       case "content":
         return <ContentMarketing />;
       case "analytics":
