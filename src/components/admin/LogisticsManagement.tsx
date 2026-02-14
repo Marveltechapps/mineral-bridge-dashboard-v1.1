@@ -32,7 +32,9 @@ import {
   Map as MapIcon,
   Phone,
   Mail,
-  Box
+  Box,
+  CreditCard,
+  Link2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "../ui/card";
 import { Button } from "../ui/button";
@@ -78,6 +80,7 @@ import { motion } from "motion/react";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
 import { useAllOrders, useDashboardStore, getRegistryUserName, getLogisticsDetailsForOrder } from "../../store/dashboardStore";
 import type { LogisticsDetails } from "../../store/dashboardStore";
+import { QRCodeSVG } from "qrcode.react";
 import { 
   LineChart, 
   Line, 
@@ -265,9 +268,13 @@ export interface LogisticsManagementProps {
   initialOrderId?: string;
   /** Open full order detail page (Buyer/Seller management). */
   onOpenOrderDetail?: (orderId: string, type: "buy" | "sell") => void;
+  /** Open Orders & Settlements (Transactions) page for this transaction. Pass transaction id. */
+  onNavigateToTransaction?: (transactionId: string) => void;
+  /** Open Orders & Settlements page (all transactions). */
+  onNavigateToTransactionsPage?: () => void;
 }
 
-export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: LogisticsManagementProps = {}) {
+export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavigateToTransaction, onNavigateToTransactionsPage }: LogisticsManagementProps = {}) {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedShipment, setSelectedShipment] = useState<any>(null);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
@@ -306,6 +313,22 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
   );
   const displayShipments = shipmentsFromStore.length ? shipmentsFromStore : SHIPMENTS;
 
+  /** Shipment details table: rows from saved 3rd party details (database). */
+  const shipmentDetailsFromDb = useMemo(() => {
+    return Object.entries(state.logisticsDetails).map(([orderId, details]) => {
+      const order = allOrders.find((o) => o.id === orderId);
+      return {
+        orderId,
+        userName: order ? getRegistryUserName(state.registryUsers, order.userId) : "—",
+        routeMaterial: order ? `${order.mineral} ${order.qty} ${order.unit}` : "—",
+        carrier: details.carrierName || "—",
+        status: order?.status ?? "—",
+        risk: order ? "Low" as const : "—",
+        updatedAt: details.updatedAt,
+      };
+    });
+  }, [state.logisticsDetails, allOrders, state.registryUsers]);
+
   const handleTrackLive = (shipment: any) => {
     setSelectedShipment(shipment);
     setIsTrackingModalOpen(true);
@@ -320,6 +343,7 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
     const payload: LogisticsDetails = {
       orderId,
       ...thirdPartyForm,
+      qrPayload: thirdPartyForm.qrPayload || thirdPartyForm.trackingUrl || "",
       updatedAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
     };
     dispatch({ type: "SET_LOGISTICS_DETAILS", payload });
@@ -1080,10 +1104,6 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
                 <label className="text-sm font-medium">Tracking URL (shown as link in app)</label>
                 <Input placeholder="https://track.carrier.com/..." value={thirdPartyForm.trackingUrl} onChange={(e) => setThirdPartyForm((f) => ({ ...f, trackingUrl: e.target.value }))} />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">QR Code Payload (URL or text encoded in QR)</label>
-                <Input placeholder="Same as tracking URL or tracking number" value={thirdPartyForm.qrPayload} onChange={(e) => setThirdPartyForm((f) => ({ ...f, qrPayload: e.target.value }))} />
-              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Contact Phone</label>
@@ -1098,7 +1118,58 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
                 <label className="text-sm font-medium">Notes</label>
                 <Input placeholder="Optional notes" value={thirdPartyForm.notes} onChange={(e) => setThirdPartyForm((f) => ({ ...f, notes: e.target.value }))} />
               </div>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveLogisticsDetails}>
+
+              {/* Transaction payment – QR code for Tracking URL (under 3rd party logistics; save after completing) */}
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-emerald-600" />
+                      Transaction payment
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-1">QR code for the <strong>Tracking URL</strong> above. Complete details, then save with the button below.</p>
+                  </div>
+                  {onNavigateToTransactionsPage && (
+                    <Button variant="outline" size="sm" className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={onNavigateToTransactionsPage}>
+                      <Link2 className="h-4 w-4" />
+                      Open Transactions page
+                    </Button>
+                  )}
+                </div>
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-4">
+                  {(() => {
+                    const trackingUrl = (thirdPartyForm.trackingUrl || "").trim();
+                    return (
+                      <div className="flex flex-wrap items-start gap-6">
+                        <div className="p-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                          {trackingUrl ? (
+                            <>
+                              <QRCodeSVG value={trackingUrl} size={200} className="mx-auto" />
+                              <p className="text-xs text-muted-foreground mt-2 text-center max-w-[200px]">Scan for tracking link</p>
+                            </>
+                          ) : (
+                            <div className="w-[200px] h-[200px] flex items-center justify-center border border-dashed border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                              <p className="text-xs text-muted-foreground text-center px-2">Enter <strong>Tracking URL</strong> above to show QR</p>
+                            </div>
+                          )}
+                        </div>
+                        {thirdPartyTabOrderId && onNavigateToTransaction && (() => {
+                          const tx = state.transactions.find((t) => t.orderId === thirdPartyTabOrderId);
+                          if (!tx) return null;
+                          return (
+                            <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={() => onNavigateToTransaction(tx.id)}>
+                              <Link2 className="h-4 w-4" />
+                              View this transaction
+                            </Button>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <Button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveLogisticsDetails}>
                 Save 3rd Party Details
               </Button>
               {Object.keys(state.logisticsDetails).length > 0 && (
@@ -1114,7 +1185,15 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
 
               {/* Shipment details table */}
               <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-                <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Shipment details</h4>
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Shipment details</h4>
+                  {onNavigateToTransactionsPage && (
+                    <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 gap-1" onClick={onNavigateToTransactionsPage}>
+                      <Link2 className="h-4 w-4" />
+                      All transactions
+                    </Button>
+                  )}
+                </div>
                 <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
                   <Table>
                     <TableHeader>
@@ -1129,55 +1208,72 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail }: Logis
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {displayShipments.length === 0 ? (
+                      {shipmentDetailsFromDb.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={7} className="text-sm text-muted-foreground text-center py-8">
-                            No shipments to show. Orders will appear here when available.
+                            No shipment details saved yet. Enter order/shipment ID above, fill carrier and tracking details, and click Save 3rd Party Details. Saved records will appear here.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        displayShipments.slice(0, 10).map((s) => {
-                          const order = allOrders.find((o) => o.id === s.orderId);
-                          const userName = order ? getRegistryUserName(state.registryUsers, order.userId) : "—";
-                          const logistics = order ? getLogisticsDetailsForOrder(state, order.id) : null;
-                          const carrier = logistics?.carrierName || s.carrier || "—";
-                          const riskColor = s.delayRisk === "Medium" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                        shipmentDetailsFromDb.map((row) => {
+                          const riskColor = row.risk === "Medium" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
                           return (
-                            <TableRow key={s.id} className="border-slate-100 dark:border-slate-800">
+                            <TableRow key={row.orderId} className="border-slate-100 dark:border-slate-800">
                               <TableCell className="text-sm font-medium text-slate-900 dark:text-white">
-                                <span className="font-mono">{s.orderId}</span>
+                                <span className="font-mono">{row.orderId}</span>
+                                {row.updatedAt && (
+                                  <span className="block text-xs font-normal text-muted-foreground mt-0.5">Saved {row.updatedAt}</span>
+                                )}
                               </TableCell>
-                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{userName}</TableCell>
-                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{s.mineral}</TableCell>
-                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{carrier}</TableCell>
+                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{row.userName}</TableCell>
+                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{row.routeMaterial}</TableCell>
+                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{row.carrier}</TableCell>
                               <TableCell>
-                                <Badge variant="secondary" className="text-xs font-medium">{s.status}</Badge>
+                                <Badge variant="secondary" className="text-xs font-medium">{row.status}</Badge>
                               </TableCell>
                               <TableCell>
-                                <Badge variant="secondary" className={`text-xs font-medium ${riskColor}`}>{s.delayRisk}</Badge>
+                                {row.risk !== "—" ? (
+                                  <Badge variant="secondary" className={`text-xs font-medium ${riskColor}`}>{row.risk}</Badge>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                )}
                               </TableCell>
                               <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2 flex-wrap">
+                                <div className="flex flex-wrap items-center justify-end gap-2">
                                   <Button
                                     variant="link"
                                     size="sm"
                                     className="text-emerald-600 hover:text-emerald-700 font-medium h-auto p-0"
                                     onClick={() => {
-                                      loadExistingForOrder(s.orderId);
-                                      toast.success("Send for logistics", { description: `Order ${s.orderId} — tracking form ready.` });
+                                      loadExistingForOrder(row.orderId);
+                                      toast.success("Send Tracking URL", { description: `Order ${row.orderId} — tracking form ready.` });
                                     }}
                                   >
-                                    Send for logistics
+                                    Send Tracking URL
                                   </Button>
                                   <Button
                                     variant="link"
                                     size="sm"
                                     className="text-[#A855F7] hover:text-purple-600 font-medium h-auto p-0 gap-1"
-                                    onClick={() => setSendTxOrderId(s.orderId)}
+                                    onClick={() => setSendTxOrderId(row.orderId)}
                                   >
                                     <Mail className="h-3.5 w-3.5" />
                                     Send transaction details
                                   </Button>
+                                  {onNavigateToTransaction && (() => {
+                                    const tx = state.transactions.find((t) => t.orderId === row.orderId);
+                                    if (!tx) return null;
+                                    return (
+                                      <Button
+                                        variant="link"
+                                        size="sm"
+                                        className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white font-medium h-auto p-0"
+                                        onClick={() => onNavigateToTransaction(tx.id)}
+                                      >
+                                        View transaction
+                                      </Button>
+                                    );
+                                  })()}
                                 </div>
                               </TableCell>
                             </TableRow>

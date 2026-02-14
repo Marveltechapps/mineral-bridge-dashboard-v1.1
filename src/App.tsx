@@ -433,7 +433,14 @@ function AppContent() {
       case "partners":
         return <PartnerManagement />;
       case "logistics":
-        return <LogisticsManagement initialOrderId={viewParams.selectedOrderId} onOpenOrderDetail={openOrderDetail} />;
+        return (
+          <LogisticsManagement
+            initialOrderId={viewParams.selectedOrderId}
+            onOpenOrderDetail={openOrderDetail}
+            onNavigateToTransaction={(transactionId) => navigateTo("orders", { selectedTransactionId: transactionId })}
+            onNavigateToTransactionsPage={() => navigateTo("orders", {})}
+          />
+        );
       case "insurance":
         return <InsuranceManagement />;
       case "settings":
