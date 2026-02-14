@@ -1,9 +1,14 @@
 /**
  * Financial & Reporting API layer.
- * Uses dashboard store for state; replace with fetch('/api/...') when backend is available.
+ * When VITE_FINANCIAL_API_URL is set, calls backend /api/financial/*; otherwise uses mock.
  */
 
 import type { DashboardAction } from "../store/dashboardStore";
+
+const API_BASE =
+  (typeof import.meta !== "undefined" && (import.meta as { env?: { VITE_FINANCIAL_API_URL?: string } }).env?.VITE_FINANCIAL_API_URL) ||
+  "";
+const financialApi = (path: string) => `${API_BASE.replace(/\/$/, "")}/api/financial${path.startsWith("/") ? path : `/${path}`}`;
 
 export type FinancialFlowStep =
   | "send-qr"
@@ -62,22 +67,53 @@ export interface ReleasePayload {
   dispatch: React.Dispatch<DashboardAction>;
 }
 
-/** Generate QR + send via email/WhatsApp (mock – in production calls POST /api/send-qr). */
+/** Generate QR + send via email/WhatsApp. Calls POST /api/financial/send-qr when VITE_FINANCIAL_API_URL is set. */
 export async function sendQr(payload: SendQrPayload): Promise<{ success: boolean; qrData?: string }> {
-  const { dispatch } = payload;
+  const { transactionId, orderId, channel } = payload;
+  if (API_BASE) {
+    const res = await fetch(financialApi("/send-qr"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionId, orderId, channel }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Send QR failed");
+    return { success: true, qrData: data.qrData };
+  }
   await new Promise((r) => setTimeout(r, 600));
-  // In production: const res = await fetch('/api/send-qr', { method: 'POST', body: JSON.stringify({...}) });
-  return { success: true, qrData: `https://app.mineralbridge.com/order/${payload.orderId}` };
+  return { success: true, qrData: `https://app.mineralbridge.com/order/${orderId}` };
 }
 
-/** Twilio call/SMS + log enquiry (mock – in production POST /api/call-buyer). */
+/** Twilio call/SMS + log enquiry. Calls POST /api/financial/call-buyer when VITE_FINANCIAL_API_URL is set. */
 export async function callBuyer(payload: CallBuyerPayload): Promise<{ success: boolean }> {
+  const { transactionId, orderId, action } = payload;
+  if (API_BASE) {
+    const res = await fetch(financialApi("/call-buyer"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionId, orderId, action }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Call buyer failed");
+    return { success: true };
+  }
   await new Promise((r) => setTimeout(r, 500));
   return { success: true };
 }
 
-/** Stripe escrow (mock – in production POST /api/reserve-escrow). */
+/** Stripe escrow. Calls POST /api/financial/reserve-escrow when VITE_FINANCIAL_API_URL is set. */
 export async function reserveEscrow(payload: ReserveEscrowPayload): Promise<{ success: boolean }> {
+  const { transactionId, orderId, amount, currency } = payload;
+  if (API_BASE) {
+    const res = await fetch(financialApi("/reserve-escrow"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionId, orderId, amount, currency }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Reserve escrow failed");
+    return { success: true };
+  }
   await new Promise((r) => setTimeout(r, 800));
   return { success: true };
 }

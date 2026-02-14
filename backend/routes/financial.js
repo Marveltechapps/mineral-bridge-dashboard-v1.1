@@ -1,38 +1,28 @@
 /**
  * Financial & Reporting API routes (Node.js + Express).
- * Wire this to your Express app when adding a backend.
- * MongoDB schema: transactions collection with txId, user, order, amount, status, etc.
+ * Mount at: app.use('/api/financial', require('./routes/financial'));
+ * MongoDB: transactions collection (txId, user, order, amount, status, etc.) when getDb() is available.
  */
 
-// const express = require('express');
-// const router = express.Router();
-// const { getDb } = require('../../lib/mongodb');
+const express = require("express");
+const router = express.Router();
+const qrGenerate = require("./api/financial/qr-generate");
+const twilioCall = require("./api/financial/twilio-call");
+const stripeEscrow = require("./api/financial/stripe-escrow");
 
-// POST /api/send-qr – Generate QR + Resend email / WhatsApp
-// Body: { transactionId, orderId, channel: 'email'|'whatsapp' }
-// router.post('/send-qr', async (req, res) => { ... });
+// POST /api/financial/send-qr – Generate QR + optional Resend email
+router.post("/send-qr", qrGenerate);
 
-// POST /api/call-buyer – Twilio Voice/SMS + Enquiry log
-// Body: { transactionId, orderId, action: 'voice'|'sms', phone? }
-// router.post('/call-buyer', async (req, res) => { ... });
+// POST /api/financial/call-buyer – Twilio Voice/SMS + Enquiry log
+router.post("/call-buyer", twilioCall);
 
-// POST /api/reserve-escrow – Stripe escrow.create()
-// Body: { transactionId, orderId, amount, currency }
-// router.post('/reserve-escrow', async (req, res) => { ... });
+// POST /api/financial/reserve-escrow – Stripe escrow / PaymentIntent
+router.post("/reserve-escrow", stripeEscrow);
 
-// POST /api/testing – SGS assignment + Compliance update
-// Body: { transactionId, orderId, lab, resultSummary? }
-// router.post('/testing', async (req, res) => { ... });
+// Placeholder routes (return 501 until implemented)
+router.post("/testing", (req, res) => res.status(501).json({ success: false, error: "Not implemented" }));
+router.post("/lc-issue", (req, res) => res.status(501).json({ success: false, error: "Not implemented" }));
+router.post("/release", (req, res) => res.status(501).json({ success: false, error: "Not implemented" }));
+router.get("/transactions", (req, res) => res.status(501).json({ success: false, error: "Not implemented" }));
 
-// POST /api/lc-issue – LC PDF + SWIFT validation
-// Body: { transactionId, orderId, lcNumber }
-// router.post('/lc-issue', async (req, res) => { ... });
-
-// POST /api/release – Stripe payout + Mark Complete
-// Body: { transactionId, orderId }
-// router.post('/release', async (req, res) => { ... });
-
-// GET /api/transactions – Real-time MongoDB data (or use Socket.io for live updates)
-// router.get('/transactions', async (req, res) => { ... });
-
-// module.exports = router;
+module.exports = router;
