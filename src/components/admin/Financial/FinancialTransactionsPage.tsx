@@ -9,7 +9,7 @@ import {
 } from "../../ui/table";
 import { Button } from "../../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
-import { useDashboardStore } from "../../../store/dashboardStore";
+import { useDashboardStore, getLogisticsDetailsForOrder } from "../../../store/dashboardStore";
 import { getRegistryUserName } from "../../../store/dashboardStore";
 import type { Transaction } from "../../../store/dashboardStore";
 import { FLOW_STEPS, type FinancialFlowStep } from "../../../lib/financialApi";
@@ -50,11 +50,16 @@ export function FinancialTransactionsPage({
 
   const rows = useMemo(
     () =>
-      transactions.map((tx) => ({
-        ...tx,
-        userName: getTransactionUserName(tx, buyOrders, sellOrders, registryUsers),
-      })),
-    [transactions, buyOrders, sellOrders, registryUsers]
+      transactions.map((tx) => {
+        const userName = getTransactionUserName(tx, buyOrders, sellOrders, registryUsers);
+        const logistics = getLogisticsDetailsForOrder(state, tx.orderId);
+        return {
+          ...tx,
+          userName,
+          logisticsAmount: logistics?.shippingAmount ? `${logistics.shippingAmount} ${logistics.shippingCurrency ?? "USD"}` : null,
+        };
+      }),
+    [transactions, buyOrders, sellOrders, registryUsers, state.logisticsDetails]
   );
 
   return (
@@ -89,9 +94,10 @@ export function FinancialTransactionsPage({
               <TableHeader>
                 <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                   <TableHead className="font-semibold">TX-ID</TableHead>
-                  <TableHead className="font-semibold">User</TableHead>
+                  <TableHead className="font-semibold">User (linked)</TableHead>
                   <TableHead className="font-semibold">Order</TableHead>
                   <TableHead className="font-semibold">Amount</TableHead>
+                  <TableHead className="font-semibold">Logistics amount</TableHead>
                   <TableHead className="font-semibold">Status</TableHead>
                   <TableHead className="text-right font-semibold">Actions</TableHead>
                 </TableRow>
@@ -106,6 +112,7 @@ export function FinancialTransactionsPage({
                     <TableCell>{row.userName}</TableCell>
                     <TableCell className="font-mono text-sm">{row.orderId}</TableCell>
                     <TableCell className="font-medium">{row.finalAmount} {row.currency}</TableCell>
+                    <TableCell className="text-sm text-emerald-600 dark:text-emerald-400">{row.logisticsAmount ?? "—"}</TableCell>
                     <TableCell>
                       <StatusSyncBadge status={row.status} />
                     </TableCell>

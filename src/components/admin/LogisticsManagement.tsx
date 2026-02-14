@@ -293,6 +293,8 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
     contactPhone: "",
     contactEmail: "",
     notes: "",
+    shippingAmount: "",
+    shippingCurrency: "USD",
   });
   const shipmentsFromStore = useMemo(
     () =>
@@ -348,7 +350,7 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
     };
     dispatch({ type: "SET_LOGISTICS_DETAILS", payload });
     toast.success("3rd party details saved", { description: `Order ${orderId}. Link/QR will appear in customer app.` });
-    setThirdPartyForm({ carrierName: "", trackingNumber: "", trackingUrl: "", qrPayload: "", contactPhone: "", contactEmail: "", notes: "" });
+    setThirdPartyForm({ carrierName: "", trackingNumber: "", trackingUrl: "", qrPayload: "", contactPhone: "", contactEmail: "", notes: "", shippingAmount: "", shippingCurrency: "USD" });
     setThirdPartyTabOrderId("");
   };
 
@@ -399,6 +401,8 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
         contactPhone: existing.contactPhone,
         contactEmail: existing.contactEmail,
         notes: existing.notes,
+        shippingAmount: existing.shippingAmount ?? "",
+        shippingCurrency: existing.shippingCurrency ?? "USD",
       });
     }
     setThirdPartyTabOrderId(orderId);
@@ -1119,6 +1123,38 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
                 <Input placeholder="Optional notes" value={thirdPartyForm.notes} onChange={(e) => setThirdPartyForm((f) => ({ ...f, notes: e.target.value }))} />
               </div>
 
+              {/* Amount details for Financial & Support – shipping cost / logistics amount */}
+              <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-emerald-600" />
+                    Shipping / logistics amount
+                  </label>
+                  <Input
+                    placeholder="e.g. 1250.00"
+                    value={thirdPartyForm.shippingAmount ?? ""}
+                    onChange={(e) => setThirdPartyForm((f) => ({ ...f, shippingAmount: e.target.value }))}
+                  />
+                  <p className="text-xs text-muted-foreground">Used in Financial & Support for reconciliation and reporting.</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Currency</label>
+                  <Select
+                    value={thirdPartyForm.shippingCurrency ?? "USD"}
+                    onValueChange={(v) => setThirdPartyForm((f) => ({ ...f, shippingCurrency: v }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD</SelectItem>
+                      <SelectItem value="EUR">EUR</SelectItem>
+                      <SelectItem value="GBP">GBP</SelectItem>
+                      <SelectItem value="GHS">GHS</SelectItem>
+                      <SelectItem value="CHF">CHF</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               {/* Transaction payment – QR code for Tracking URL (under 3rd party logistics; save after completing) */}
               <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
@@ -1127,7 +1163,9 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
                       <CreditCard className="h-4 w-4 text-emerald-600" />
                       Transaction payment
                     </h4>
-                    <p className="text-xs text-muted-foreground mt-1">QR code for the <strong>Tracking URL</strong> above. Complete details, then save with the button below.</p>
+                    <p className="text-xs text-muted-foreground mt-1">QR code for the <strong>Tracking URL</strong> above. {thirdPartyForm.shippingAmount ? (
+                      <span className="text-emerald-600 font-medium">Amount: {thirdPartyForm.shippingAmount} {thirdPartyForm.shippingCurrency ?? "USD"}</span>
+                    ) : "Enter shipping amount above for Financial & Support."} Save with the button below.</p>
                   </div>
                   {onNavigateToTransactionsPage && (
                     <Button variant="outline" size="sm" className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={onNavigateToTransactionsPage}>

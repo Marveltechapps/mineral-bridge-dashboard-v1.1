@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useDashboardStore, getRegistryUserName } from "../../../store/dashboardStore";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -121,9 +122,34 @@ export function TradeFinanceLC({
                   </TableCell>
                   <TableCell className="text-sm">{row.documents}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="outline">Amend</Button>
-                    <Button size="sm" className="ml-1 bg-[#A855F7] hover:bg-purple-600">Release</Button>
-                    <Button size="sm" variant="outline" className="ml-1">Docs</Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        toast.info("Amend LC", { description: `${row.lcNumber} – open amendment flow or order.` });
+                        onOpenOrderDetail?.(row.orderId, row.type === "Sell" ? "sell" : "buy");
+                      }}
+                    >
+                      Amend
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="ml-1 bg-[#A855F7] hover:bg-purple-600"
+                      onClick={() => {
+                        toast.success("Release LC", { description: `${row.lcNumber} – release funds / documents.` });
+                        onOpenOrderDetail?.(row.orderId, row.type === "Sell" ? "sell" : "buy");
+                      }}
+                    >
+                      Release
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-1"
+                      onClick={() => toast.info("Documents", { description: `${row.lcNumber} – view or upload documents.` })}
+                    >
+                      Docs
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

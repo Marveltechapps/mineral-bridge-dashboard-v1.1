@@ -89,6 +89,9 @@ export function TransactionDetailTabs({
             <p><span className="text-muted-foreground">LC#:</span> {row.lc}</p>
             <p><span className="text-muted-foreground">Testing:</span> {order.type === "Sell" ? `${row.testing} — use Testing tab for lab assignment` : "N/A (Buy orders)"}</p>
             <p><span className="text-muted-foreground">Logistics:</span> {row.logistics} — use <strong>Logistics</strong> tab for tracking details</p>
+            {logistics?.shippingAmount && (
+              <p><span className="text-muted-foreground">Logistics amount (saved):</span> <span className="font-medium text-emerald-600 dark:text-emerald-400">{logistics.shippingAmount} {logistics.shippingCurrency ?? "USD"}</span> — linked to this order & user ({row.buyer} / {row.seller})</p>
+            )}
           </CardContent>
         </Card>
       </TabsContent>

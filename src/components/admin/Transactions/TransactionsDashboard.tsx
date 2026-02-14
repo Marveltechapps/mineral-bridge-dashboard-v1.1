@@ -8,7 +8,6 @@ import {
   type TransactionRow,
 } from "./TransactionsTable";
 import { TransactionDetailTabs } from "./TransactionDetailTabs";
-import { BankDetailsCard } from "./BankDetailsCard";
 
 export function TransactionsDashboard({
   onOpenOrderDetail,
@@ -98,9 +97,6 @@ export function TransactionsDashboard({
         <p className="text-sm font-medium text-muted-foreground mb-3">Pipeline</p>
         <TimelineStepper steps={pipelineSteps} />
       </div>
-
-      {/* Bank details – enter buyer/seller account and bank info */}
-      <BankDetailsCard state={state} dispatch={dispatch} preselectedTransactionId={selectedRow ? state.transactions.find((t) => t.orderId === selectedRow.id)?.id ?? null : null} />
 
       {/* Main table */}
       <TransactionsTable

@@ -66,6 +66,10 @@ export interface LogisticsDetails {
   contactPhone: string;
   contactEmail: string;
   notes: string;
+  /** Optional: shipping / logistics amount for Financial & Support reconciliation. */
+  shippingAmount?: string;
+  /** Optional: currency for shippingAmount (e.g. USD, EUR). */
+  shippingCurrency?: string;
   updatedAt: string;
 }
 

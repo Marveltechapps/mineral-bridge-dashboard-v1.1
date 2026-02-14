@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { useDashboardStore, getLogisticsDetailsForOrder } from "../../store/dashboardStore";
+import { useDashboardStore, getLogisticsDetailsForOrder, getRegistryUserName } from "../../store/dashboardStore";
 import { CreditCard, FlaskConical, Truck, ExternalLink } from "lucide-react";
 
 export interface FlowStepContextProps {
@@ -111,6 +111,10 @@ export function FlowStepContext({
             <>
               <p><span className="text-muted-foreground">Carrier</span> <span className="font-medium">{logistics.carrierName}</span></p>
               <p><span className="text-muted-foreground">Tracking</span> <span className="font-mono text-xs">{logistics.trackingNumber || "—"}</span></p>
+              {logistics.shippingAmount && (
+                <p><span className="text-muted-foreground">Shipping amount</span> <span className="font-semibold text-emerald-600 dark:text-emerald-400">{logistics.shippingAmount} {logistics.shippingCurrency ?? "USD"}</span></p>
+              )}
+              {order.userId && <p className="text-xs text-muted-foreground">Linked to user: {getRegistryUserName(state.registryUsers, order.userId)}</p>}
               {logistics.contactEmail && <p><span className="text-muted-foreground">Contact</span> <span className="text-xs">{logistics.contactEmail}</span></p>}
               {onOpenLogisticsDetail && (
                 <Button variant="link" size="sm" className="h-auto p-0 text-[#A855F7] mt-1" onClick={() => onOpenLogisticsDetail(order.id)}>

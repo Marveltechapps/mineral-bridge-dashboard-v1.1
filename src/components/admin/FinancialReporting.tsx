@@ -191,31 +191,58 @@ export function FinancialReporting({
         <TabsList className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex-wrap h-auto gap-1 p-1">
           <TabsTrigger
             value="transactions"
-            className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white data-[state=active]:shadow-md"
-            onClick={() => onNavigateToTransactionsPage?.()}
+            className="gap-1.5 data-[state=inactive]:text-slate-600 dark:data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:bg-slate-200/80 dark:data-[state=inactive]:hover:bg-slate-700/80 data-[state=active]:!bg-[#A855F7] data-[state=active]:!text-white data-[state=active]:shadow-md dark:data-[state=active]:!bg-[#A855F7] dark:data-[state=active]:!text-white"
+            onClick={() => {
+              setActiveTab("transactions");
+              onNavigateToTransactionsPage?.();
+            }}
           >
             <LayoutGrid className="h-4 w-4" />
             Transactions
           </TabsTrigger>
-          <TabsTrigger value="escrow" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger
+            value="escrow"
+            className="gap-1.5 data-[state=inactive]:text-slate-600 dark:data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:bg-slate-200/80 dark:data-[state=inactive]:hover:bg-slate-700/80 data-[state=active]:!bg-[#A855F7] data-[state=active]:!text-white data-[state=active]:shadow-md dark:data-[state=active]:!bg-[#A855F7] dark:data-[state=active]:!text-white"
+            onClick={() => setActiveTab("escrow")}
+          >
             <Wallet className="h-4 w-4" />
             Escrow (Global)
           </TabsTrigger>
-          <TabsTrigger value="lc" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger
+            value="lc"
+            className="gap-1.5 data-[state=inactive]:text-slate-600 dark:data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:bg-slate-200/80 dark:data-[state=inactive]:hover:bg-slate-700/80 data-[state=active]:!bg-[#A855F7] data-[state=active]:!text-white data-[state=active]:shadow-md dark:data-[state=active]:!bg-[#A855F7] dark:data-[state=active]:!text-white"
+            onClick={() => setActiveTab("lc")}
+          >
             <FileText className="h-4 w-4" />
             Trade Finance LC
           </TabsTrigger>
-          <TabsTrigger value="incoterms" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger
+            value="incoterms"
+            className="gap-1.5 data-[state=inactive]:text-slate-600 dark:data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:bg-slate-200/80 dark:data-[state=inactive]:hover:bg-slate-700/80 data-[state=active]:!bg-[#A855F7] data-[state=active]:!text-white data-[state=active]:shadow-md dark:data-[state=active]:!bg-[#A855F7] dark:data-[state=active]:!text-white"
+            onClick={() => setActiveTab("incoterms")}
+          >
             Incoterms & Logistics
           </TabsTrigger>
-          <TabsTrigger value="compliance" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger
+            value="compliance"
+            className="gap-1.5 data-[state=inactive]:text-slate-600 dark:data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:bg-slate-200/80 dark:data-[state=inactive]:hover:bg-slate-700/80 data-[state=active]:!bg-[#A855F7] data-[state=active]:!text-white data-[state=active]:shadow-md dark:data-[state=active]:!bg-[#A855F7] dark:data-[state=active]:!text-white"
+            onClick={() => setActiveTab("compliance")}
+          >
             <Shield className="h-4 w-4" />
             Compliance
           </TabsTrigger>
-          <TabsTrigger value="currency" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger
+            value="currency"
+            className="gap-1.5 data-[state=inactive]:text-slate-600 dark:data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:bg-slate-200/80 dark:data-[state=inactive]:hover:bg-slate-700/80 data-[state=active]:!bg-[#A855F7] data-[state=active]:!text-white data-[state=active]:shadow-md dark:data-[state=active]:!bg-[#A855F7] dark:data-[state=active]:!text-white"
+            onClick={() => setActiveTab("currency")}
+          >
             Multi-Currency
           </TabsTrigger>
-          <TabsTrigger value="revenue" className="gap-1.5 data-[state=active]:bg-[#A855F7] data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger
+            value="revenue"
+            className="gap-1.5 data-[state=inactive]:text-slate-600 dark:data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:bg-slate-200/80 dark:data-[state=inactive]:hover:bg-slate-700/80 data-[state=active]:!bg-[#A855F7] data-[state=active]:!text-white data-[state=active]:shadow-md dark:data-[state=active]:!bg-[#A855F7] dark:data-[state=active]:!text-white"
+            onClick={() => setActiveTab("revenue")}
+          >
             <TrendingUp className="h-4 w-4" />
             Revenue
           </TabsTrigger>

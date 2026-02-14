@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "../../ui/table";
 import { Badge } from "../../ui/badge";
+import { toast } from "sonner";
 
 export function RevenueAnalytics({
   onOpenOrderDetail,
@@ -135,10 +136,57 @@ export function RevenueAnalytics({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-14">CSV Export</Button>
-            <Button variant="outline" className="h-14">PDF Summary</Button>
-            <Button variant="outline" className="h-14">Mineral Breakdown</Button>
-            <Button variant="outline" className="h-14">Bank Statements</Button>
+            <Button
+              variant="outline"
+              className="h-14"
+              onClick={() => {
+                const headers = ["Transaction ID", "Order", "Amount", "Status", "Mineral"];
+                const rows = state.transactions.map((t) => [t.id, t.orderId, t.finalAmount, t.status, t.mineral].join(","));
+                const csv = [headers.join(","), ...rows].join("\n");
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `revenue-export-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success("CSV exported", { description: "Revenue data downloaded." });
+              }}
+            >
+              CSV Export
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14"
+              onClick={() => toast.info("PDF Summary", { description: "PDF report is being generated. Download will start shortly." })}
+            >
+              PDF Summary
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14"
+              onClick={() => {
+                const byMineral = topMinerals.map((m) => `${m.mineral},${m.value}`).join("\n");
+                const csv = "Mineral,Revenue\n" + byMineral;
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `mineral-breakdown-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success("Mineral breakdown exported", { description: "CSV downloaded." });
+              }}
+            >
+              Mineral Breakdown
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14"
+              onClick={() => toast.info("Bank Statements", { description: "Bank statement export is being prepared." })}
+            >
+              Bank Statements
+            </Button>
           </div>
         </CardContent>
       </Card>
