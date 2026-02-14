@@ -97,12 +97,12 @@ import {
 } from "recharts";
 
 const PERFORMANCE_DATA = [
-  { month: "Aug", score: 88, tat: 23, retest: 2.5 },
-  { month: "Sep", score: 90, tat: 22, retest: 2.3 },
-  { month: "Oct", score: 85, tat: 25, retest: 3.1 },
-  { month: "Nov", score: 92, tat: 21, retest: 2.0 },
-  { month: "Dec", score: 94, tat: 19, retest: 1.8 },
-  { month: "Jan", score: 92, tat: 22, retest: 2.1 },
+  { month: "Aug", score: 88, tat: 23, retest: 2.5, volume: 120 },
+  { month: "Sep", score: 90, tat: 22, retest: 2.3, volume: 135 },
+  { month: "Oct", score: 85, tat: 25, retest: 3.1, volume: 128 },
+  { month: "Nov", score: 92, tat: 21, retest: 2.0, volume: 142 },
+  { month: "Dec", score: 94, tat: 19, retest: 1.8, volume: 138 },
+  { month: "Jan", score: 92, tat: 22, retest: 2.1, volume: 145 },
 ];
 
 const TEST_REQUESTS = [
@@ -236,10 +236,16 @@ const REPORTS = [
 ];
 
 type TestRequestRow = (typeof TEST_REQUESTS)[number];
+type ReportRow = (typeof REPORTS)[number];
 
 type TestingPartner = "SGS" | "Other";
 
-export function PartnerManagement() {
+export interface PartnerManagementProps {
+  /** Navigate to Compliance & Verification (e.g. after batch verification). */
+  onNavigateToCompliance?: () => void;
+}
+
+export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementProps = {}) {
   const { state } = useDashboardStore();
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedPartner, setSelectedPartner] = useState<TestingPartner>("SGS");
@@ -258,8 +264,66 @@ export function PartnerManagement() {
     partner: "SGS" as TestingPartner,
     otherPartnerName: "",
   });
+  const [selectedReport, setSelectedReport] = useState<ReportRow | null>(null);
+  const [reportSelection, setReportSelection] = useState<Set<string>>(new Set());
+  const [performanceChartView, setPerformanceChartView] = useState<"score" | "volume">("score");
+  const [slaExpandDialogOpen, setSlaExpandDialogOpen] = useState(false);
+  const [capacityAuditDialogOpen, setCapacityAuditDialogOpen] = useState(false);
+  const [batchVerificationDialogOpen, setBatchVerificationDialogOpen] = useState(false);
 
   const displayPartnerName = selectedPartner === "SGS" ? "SGS" : (otherPartnerName.trim() || "Other");
+
+  const handleReportViewDetails = (report: ReportRow) => setSelectedReport(report);
+  const handleReportDownload = (report: ReportRow) => {
+    toast.success("Download started", { description: `Certificate ${report.id} (${report.mineral}) is being downloaded.` });
+  };
+  const toggleReportSelection = (id: string) => {
+    setReportSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const handleSelectAllReports = (checked: boolean) => {
+    setReportSelection(checked ? new Set(REPORTS.map((r) => r.id)) : new Set());
+  };
+  const handleBatchVerification = () => {
+    if (reportSelection.size === 0) {
+      toast.error("Select at least one report", { description: "Use the checkboxes to select reports for batch verification." });
+      return;
+    }
+    setBatchVerificationDialogOpen(true);
+  };
+  const handleConfirmBatchVerification = () => {
+    const count = reportSelection.size;
+    setBatchVerificationDialogOpen(false);
+    setReportSelection(new Set());
+    toast.success("Batch verification started", {
+      description: `${count} certificate(s) queued for verification. Track status in Compliance & Verification.`,
+      action: onNavigateToCompliance ? { label: "View in Compliance", onClick: onNavigateToCompliance } : undefined,
+    });
+  };
+  const handleArchive = () => {
+    toast.success("Archive opened", { description: "Filter or export archived reports from the archive view." });
+  };
+
+  const handlePerformanceStatClick = (label: string, value: string, trend: string) => {
+    toast.success(`${label}: ${value}`, { description: trend ? `${trend} vs last 30 days` : "View details in dashboard." });
+  };
+  const handleExpandSLA = () => setSlaExpandDialogOpen(true);
+  const handleSubmitSLAExpand = () => {
+    toast.success("SLA expansion request submitted", { description: `${displayPartnerName} — request sent to partner.` });
+    setSlaExpandDialogOpen(false);
+  };
+  const handleReviewCapacityAudit = () => setCapacityAuditDialogOpen(true);
+  const handleExportCapacityAudit = () => {
+    toast.success("Capacity audit exported", { description: "PDF download started." });
+    setCapacityAuditDialogOpen(false);
+  };
+  const handleExportPerformance = () => {
+    toast.success("Performance report exported", { description: "Last 6 months — CSV download started." });
+  };
 
   const handleAddTestRequest = () => {
     if (!newTestForm.orderId.trim() || !newTestForm.mineral.trim()) {
@@ -727,7 +791,9 @@ export function PartnerManagement() {
 
         <TabsContent value="reports" className="mt-4">
           <div className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Reports & certificates</h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card className="border-none shadow-sm bg-white dark:bg-slate-900 p-6 rounded-3xl flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
                     <FileText className="w-6 h-6 text-emerald-500" />
@@ -746,23 +812,40 @@ export function PartnerManagement() {
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Expiring Soon</p>
                   </div>
                 </Card>
-                <div className="md:col-span-2 flex items-center justify-end gap-3">
-                  <Button variant="outline" className="rounded-xl border-slate-200 gap-2 h-12 font-bold px-6">
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Certificate list</h3>
+                  <Button variant="outline" className="rounded-xl border-slate-200 gap-2 h-10 font-semibold px-4" onClick={handleArchive}>
                     <History className="w-4 h-4" />
                     Archive
                   </Button>
-                  <Button className="bg-slate-900 text-white hover:bg-slate-800 rounded-xl gap-2 h-12 font-bold px-6 shadow-lg">
-                    <ArrowUpRight className="w-4 h-4" />
-                    Batch Verification
-                  </Button>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <Card className="lg:col-span-8 border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+                  <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/30 dark:bg-slate-800/30">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                      {reportSelection.size > 0 ? `${reportSelection.size} selected` : "Select certificates below for batch verification"}
+                    </span>
+                    <Button className="bg-slate-900 text-white hover:bg-slate-800 rounded-xl gap-2 h-9 font-semibold px-4 shadow-lg" onClick={handleBatchVerification}>
+                      <ArrowUpRight className="w-4 h-4" />
+                      Batch Verification
+                      {reportSelection.size > 0 && (
+                        <Badge variant="secondary" className="ml-1 bg-white/20 text-white border-0">{reportSelection.size}</Badge>
+                      )}
+                    </Button>
+                  </div>
                   <Table>
                     <TableHeader className="bg-slate-50/50">
                       <TableRow className="border-none">
+                        <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-6 w-10">
+                          <Checkbox
+                            checked={reportSelection.size === REPORTS.length}
+                            onCheckedChange={(c) => handleSelectAllReports(c === true)}
+                            aria-label="Select all reports"
+                          />
+                        </TableHead>
                         <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-8">Certificate ID</TableHead>
                         <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Issue Date</TableHead>
                         <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Expires On</TableHead>
@@ -774,6 +857,13 @@ export function PartnerManagement() {
                     <TableBody>
                       {REPORTS.map((report) => (
                         <TableRow key={report.id} className="border-slate-100 dark:border-slate-800">
+                          <TableCell className="px-6 w-10">
+                            <Checkbox
+                              checked={reportSelection.has(report.id)}
+                              onCheckedChange={() => toggleReportSelection(report.id)}
+                              aria-label={`Select ${report.id}`}
+                            />
+                          </TableCell>
                           <TableCell className="px-8 font-black text-slate-900 dark:text-white text-sm">{report.id}</TableCell>
                           <TableCell className="text-xs font-bold text-slate-500">{report.issueDate}</TableCell>
                           <TableCell className="text-xs font-bold text-slate-500">{report.expiryDate}</TableCell>
@@ -790,10 +880,10 @@ export function PartnerManagement() {
                           </TableCell>
                           <TableCell className="text-right px-8">
                             <div className="flex items-center justify-end gap-2">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100" onClick={() => handleReportViewDetails(report)} title="View details">
                                 <Eye className="w-4 h-4 text-slate-400" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-emerald-50 text-emerald-500">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-emerald-50 text-emerald-500" onClick={() => handleReportDownload(report)} title="Download">
                                 <Download className="w-4 h-4" />
                               </Button>
                             </div>
@@ -804,36 +894,129 @@ export function PartnerManagement() {
                   </Table>
                 </Card>
 
-                <div className="lg:col-span-4 space-y-6">
-                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Latest Report Previews</h3>
-                  <div className="space-y-4">
+                <Card className="lg:col-span-4 border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base font-black flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                      <FileText className="w-4 h-4 text-emerald-500" />
+                      Latest Report Previews
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 pt-0">
                     {[
                       { title: "Gold Assay Report #1029", date: "Jan 28", img: "https://images.unsplash.com/photo-1705073703601-eed67020c5ee?w=400&h=200&fit=crop" },
                       { title: "Cobalt Purity Certificate", date: "Jan 25", img: "https://images.unsplash.com/photo-1570800384563-47b66b89d5df?w=400&h=200&fit=crop" },
                       { title: "ESG Compliance Scorecard", date: "Jan 22", img: "https://images.unsplash.com/photo-1532187875605-2fe358a71e48?w=400&h=200&fit=crop" },
                     ].map((preview, i) => (
-                      <div key={i} className="group relative rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer">
-                        <ImageWithFallback 
-                          src={preview.img}
-                          className="w-full h-32 object-cover group-hover:scale-110 transition-transform duration-700 opacity-60 group-hover:opacity-100"
-                          alt={preview.title}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent p-4 flex flex-col justify-end">
-                          <p className="text-xs font-black text-white">{preview.title}</p>
-                          <p className="text-[10px] font-bold text-slate-300 mt-0.5">SGS Mumbai Lab • {preview.date}, 2026</p>
-                        </div>
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button size="icon" className="h-8 w-8 rounded-full bg-white text-slate-900 hover:bg-white/90">
-                            <ArrowUpRight className="w-4 h-4" />
-                          </Button>
+                      <div
+                        key={i}
+                        className="group relative rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 hover:border-emerald-200 dark:hover:border-emerald-800/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-all cursor-pointer"
+                      >
+                        <div className="flex">
+                          <div className="w-24 h-24 flex-shrink-0 rounded-l-2xl overflow-hidden">
+                            <ImageWithFallback
+                              src={preview.img}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              alt={preview.title}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0 p-3 flex flex-col justify-center">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{preview.title}</p>
+                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">SGS Mumbai Lab • {preview.date}, 2026</p>
+                          </div>
+                          <div className="flex items-center pr-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center">
+                              <ArrowUpRight className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
-                  </div>
+                  </CardContent>
+                </Card>
                 </div>
               </div>
           </div>
         </TabsContent>
+
+        {/* Report view details dialog */}
+        <Dialog open={!!selectedReport} onOpenChange={(open) => !open && setSelectedReport(null)}>
+          <DialogContent className="sm:max-w-md rounded-xl border-slate-200 dark:border-slate-800">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">Certificate details</DialogTitle>
+              <DialogDescription>View and verify certificate information.</DialogDescription>
+            </DialogHeader>
+            {selectedReport && (
+              <div className="space-y-4 py-2">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Certificate ID</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{selectedReport.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Mineral</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{selectedReport.mineral}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Issue date</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{selectedReport.issueDate}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Expires on</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{selectedReport.expiryDate}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Status</p>
+                    <Badge className={`border-none text-xs ${selectedReport.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                      {selectedReport.status}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Lab</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{displayPartnerName} Mumbai Lab</p>
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 pt-4">
+                  <Button variant="outline" onClick={() => setSelectedReport(null)}>Close</Button>
+                  <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { handleReportDownload(selectedReport); setSelectedReport(null); }}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Batch verification dialog – leads to Compliance & Verification */}
+        <Dialog open={batchVerificationDialogOpen} onOpenChange={setBatchVerificationDialogOpen}>
+          <DialogContent className="sm:max-w-md rounded-xl border-slate-200 dark:border-slate-800">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">Batch verification</DialogTitle>
+              <DialogDescription>
+                {reportSelection.size} certificate(s) will be sent for verification to {displayPartnerName}. Track status and results in Compliance & Verification.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-3 max-h-32 overflow-y-auto">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Selected certificates</p>
+                <div className="flex flex-wrap gap-2">
+                  {REPORTS.filter((r) => reportSelection.has(r.id)).map((r) => (
+                    <Badge key={r.id} variant="secondary" className="font-mono text-xs">{r.id}</Badge>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                After starting, go to <strong>Compliance & Verification</strong> in the sidebar to view verification queue and status.
+              </p>
+              <DialogFooter className="gap-2 pt-2">
+                <Button variant="outline" onClick={() => setBatchVerificationDialogOpen(false)}>Cancel</Button>
+                <Button className="bg-slate-900 hover:bg-slate-800" onClick={handleConfirmBatchVerification}>
+                  Start verification
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <TabsContent value="performance" className="mt-4">
           <div className="space-y-8">
@@ -844,7 +1027,7 @@ export function PartnerManagement() {
                   { label: "Delayed Requests", value: "3", trend: "0", color: "text-orange-500", icon: AlertCircle },
                   { label: "Monthly Score", value: "92/100", trend: "+4", color: "text-teal-500", icon: Activity },
                 ].map((stat, i) => (
-                  <Card key={i} className="border-none shadow-sm bg-white dark:bg-slate-900 p-6 rounded-3xl overflow-hidden group">
+                  <Card key={i} className="border-none shadow-sm bg-white dark:bg-slate-900 p-6 rounded-3xl overflow-hidden group cursor-pointer hover:ring-2 hover:ring-emerald-500/20 transition-all" onClick={() => handlePerformanceStatClick(stat.label, stat.value, stat.trend)}>
                     <div className="flex items-start justify-between">
                       <div className="space-y-2">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
@@ -866,12 +1049,19 @@ export function PartnerManagement() {
                 <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl p-8">
                   <div className="flex items-center justify-between mb-8">
                     <div>
-                      <h3 className="text-lg font-black text-slate-900 dark:text-white">Monthly Performance Score</h3>
-                      <p className="text-xs font-bold text-slate-500 mt-1">Weighted index of TAT, accuracy, and re-test rates.</p>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                        {performanceChartView === "score" ? "Monthly Performance Score" : "Test Volume (MTD)"}
+                      </h3>
+                      <p className="text-xs font-bold text-slate-500 mt-1">
+                        {performanceChartView === "score" ? "Weighted index of TAT, accuracy, and re-test rates." : "Number of tests completed per month."}
+                      </p>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" className="h-8 font-black text-[10px] uppercase">Score</Button>
-                      <Button variant="ghost" size="sm" className="h-8 font-black text-[10px] uppercase opacity-50">Volume</Button>
+                      <Button variant="ghost" size="sm" className={`h-8 font-black text-[10px] uppercase ${performanceChartView === "score" ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30" : "opacity-50"}`} onClick={() => setPerformanceChartView("score")}>Score</Button>
+                      <Button variant="ghost" size="sm" className={`h-8 font-black text-[10px] uppercase ${performanceChartView === "volume" ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30" : "opacity-50"}`} onClick={() => setPerformanceChartView("volume")}>Volume</Button>
+                      <Button variant="outline" size="sm" className="h-8 gap-1 ml-2" onClick={handleExportPerformance}>
+                        <Download className="w-3.5 h-3.5" /> Export
+                      </Button>
                     </div>
                   </div>
                   <div className="h-[300px] w-full">
@@ -881,6 +1071,10 @@ export function PartnerManagement() {
                           <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
                             <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#6366F1" stopOpacity={0}/>
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
@@ -897,11 +1091,11 @@ export function PartnerManagement() {
                         />
                         <Area 
                           type="monotone" 
-                          dataKey="score" 
-                          stroke="#10B981" 
+                          dataKey={performanceChartView === "score" ? "score" : "volume"} 
+                          stroke={performanceChartView === "score" ? "#10B981" : "#6366F1"} 
                           strokeWidth={4}
                           fillOpacity={1} 
-                          fill="url(#colorScore)" 
+                          fill={performanceChartView === "score" ? "url(#colorScore)" : "url(#colorVolume)"} 
                         />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -946,13 +1140,13 @@ export function PartnerManagement() {
               <Card className="border-none shadow-sm bg-slate-900 text-white rounded-3xl p-8 overflow-hidden relative">
                 <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
                   <div className="space-y-4">
-                    <h3 className="text-2xl font-black">Ready to scale SGS partnership?</h3>
+                    <h3 className="text-2xl font-black">Ready to scale {displayPartnerName} partnership?</h3>
                     <p className="text-slate-400 text-sm font-medium max-w-md">
-                      Current performance metrics indicate that SGS Lubumbashi lab is at 95% capacity. Automated re-routing to Perth lab is suggested for iron ore batches.
+                      Current performance metrics indicate that {displayPartnerName} Lubumbashi lab is at 95% capacity. Automated re-routing to Perth lab is suggested for iron ore batches.
                     </p>
                     <div className="flex gap-3 pt-2">
-                      <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-11 px-8">Expand Global SLA</Button>
-                      <Button variant="ghost" className="text-white hover:bg-white/10 font-bold h-11 px-8 border border-white/20">Review Capacity Audit</Button>
+                      <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-11 px-8" onClick={handleExpandSLA}>Expand Global SLA</Button>
+                      <Button variant="ghost" className="text-white hover:bg-white/10 font-bold h-11 px-8 border border-white/20" onClick={handleReviewCapacityAudit}>Review Capacity Audit</Button>
                     </div>
                   </div>
                   <div className="w-48 h-48 rounded-full bg-emerald-500/10 flex items-center justify-center relative">
@@ -966,6 +1160,46 @@ export function PartnerManagement() {
               </Card>
           </div>
         </TabsContent>
+
+        {/* SLA expansion dialog */}
+        <Dialog open={slaExpandDialogOpen} onOpenChange={setSlaExpandDialogOpen}>
+          <DialogContent className="sm:max-w-md rounded-xl border-slate-200 dark:border-slate-800">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">Expand Global SLA</DialogTitle>
+              <DialogDescription>Request expanded SLA terms with {displayPartnerName}. Your request will be sent to the partner account manager.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <p className="text-sm text-muted-foreground">Current tier: Priority Platinum. Requesting capacity and region expansion.</p>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setSlaExpandDialogOpen(false)}>Cancel</Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSubmitSLAExpand}>Submit request</Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Capacity audit dialog */}
+        <Dialog open={capacityAuditDialogOpen} onOpenChange={setCapacityAuditDialogOpen}>
+          <DialogContent className="sm:max-w-md rounded-xl border-slate-200 dark:border-slate-800">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">Capacity Audit</DialogTitle>
+              <DialogDescription>Review lab capacity and re-routing recommendations for {displayPartnerName}.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-2 text-sm">
+                <p className="font-medium text-slate-900 dark:text-white">Lubumbashi Lab — 95% capacity</p>
+                <p className="text-muted-foreground">Iron ore batches: re-route to Perth lab suggested.</p>
+                <p className="text-muted-foreground">Gold / Cobalt: within capacity.</p>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setCapacityAuditDialogOpen(false)}>Close</Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleExportCapacityAudit}>
+                  <Download className="w-4 h-4 mr-2" /> Export PDF
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <TabsContent value="financials" className="mt-4">
           <div className="space-y-8">

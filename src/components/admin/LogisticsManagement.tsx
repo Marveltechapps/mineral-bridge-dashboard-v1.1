@@ -1139,19 +1139,14 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
                 <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-4">
                   {(() => {
                     const trackingUrl = (thirdPartyForm.trackingUrl || "").trim();
+                    const qrValue = trackingUrl || (thirdPartyTabOrderId ? `order:${thirdPartyTabOrderId}` : "Mineral Bridge");
                     return (
                       <div className="flex flex-wrap items-start gap-6">
                         <div className="p-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                          {trackingUrl ? (
-                            <>
-                              <QRCodeSVG value={trackingUrl} size={200} className="mx-auto" />
-                              <p className="text-xs text-muted-foreground mt-2 text-center max-w-[200px]">Scan for tracking link</p>
-                            </>
-                          ) : (
-                            <div className="w-[200px] h-[200px] flex items-center justify-center border border-dashed border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                              <p className="text-xs text-muted-foreground text-center px-2">Enter <strong>Tracking URL</strong> above to show QR</p>
-                            </div>
-                          )}
+                          <QRCodeSVG value={qrValue} size={200} className="mx-auto" />
+                          <p className="text-xs text-muted-foreground mt-2 text-center max-w-[200px]">
+                            {trackingUrl ? "Scan for tracking link" : "QR code — enter Tracking URL above to update"}
+                          </p>
                         </div>
                         {thirdPartyTabOrderId && onNavigateToTransaction && (() => {
                           const tx = state.transactions.find((t) => t.orderId === thirdPartyTabOrderId);

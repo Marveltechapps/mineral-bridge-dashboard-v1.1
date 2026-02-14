@@ -431,7 +431,7 @@ function AppContent() {
       case "disputes":
         return <DisputesResolution initialOrderId={viewParams.selectedOrderId} onOpenOrderDetail={openOrderDetail} />;
       case "partners":
-        return <PartnerManagement />;
+        return <PartnerManagement onNavigateToCompliance={() => navigateTo("compliance", {})} />;
       case "logistics":
         return (
           <LogisticsManagement
