@@ -271,6 +271,63 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
   const [capacityAuditDialogOpen, setCapacityAuditDialogOpen] = useState(false);
   const [batchVerificationDialogOpen, setBatchVerificationDialogOpen] = useState(false);
 
+  type FinanceEntry = { id: string; date: string; desc: string; amount: string; status: string; method: string };
+  const INITIAL_FINANCE_TRANSACTIONS: FinanceEntry[] = [
+    { id: "TXN-8821", date: "Jan 28, 2026", desc: "Batch Assay Fee - O-1234", amount: "$1,200.00", status: "Paid", method: "Settlement" },
+    { id: "TXN-8820", date: "Jan 25, 2026", desc: "Expedited Testing - O-1243", amount: "$450.00", status: "Pending", method: "Direct Debit" },
+    { id: "TXN-8819", date: "Jan 20, 2026", desc: "Retest Verification - O-1236", amount: "$150.00", status: "Paid", method: "Settlement" },
+    { id: "TXN-8818", date: "Jan 18, 2026", desc: "SLA Tier Upgrade - Q1", amount: "$5,000.00", status: "Paid", method: "Wire" },
+  ];
+  const [financeTransactions, setFinanceTransactions] = useState<FinanceEntry[]>(INITIAL_FINANCE_TRANSACTIONS);
+  const [editingFinanceId, setEditingFinanceId] = useState<string | null>(null);
+  const [financeForm, setFinanceForm] = useState({ desc: "", amount: "", date: "", method: "Settlement", status: "Pending" });
+
+  const handleFinanceRowClick = (txn: FinanceEntry) => {
+    setEditingFinanceId(txn.id);
+    setFinanceForm({
+      desc: txn.desc,
+      amount: txn.amount.replace(/^\$/, ""),
+      date: txn.date,
+      method: txn.method,
+      status: txn.status,
+    });
+  };
+
+  const saveFinanceDetail = () => {
+    const trimmedDesc = financeForm.desc.trim();
+    const trimmedAmount = financeForm.amount.trim();
+    const trimmedDate = financeForm.date.trim();
+    if (!trimmedDesc || !trimmedAmount || !trimmedDate) {
+      toast.error("Missing fields", { description: "Please fill Description, Amount, and Date." });
+      return;
+    }
+    const amountDisplay = trimmedAmount.startsWith("$") ? trimmedAmount : `$${trimmedAmount}`;
+    if (editingFinanceId) {
+      setFinanceTransactions((prev) =>
+        prev.map((t) =>
+          t.id === editingFinanceId
+            ? { ...t, date: trimmedDate, desc: trimmedDesc, amount: amountDisplay, status: financeForm.status, method: financeForm.method }
+            : t
+        )
+      );
+      toast.success("Changes saved", { description: `${editingFinanceId} — ${trimmedDesc}` });
+    } else {
+      const id = `TXN-${9000 + financeTransactions.length}`;
+      setFinanceTransactions((prev) => [
+        ...prev,
+        { id, date: trimmedDate, desc: trimmedDesc, amount: amountDisplay, status: financeForm.status, method: financeForm.method },
+      ]);
+      toast.success("Finance detail added", { description: `${id} — ${trimmedDesc}` });
+    }
+    setFinanceForm({ desc: "", amount: "", date: "", method: "Settlement", status: "Pending" });
+    setEditingFinanceId(null);
+  };
+
+  const cancelEditFinance = () => {
+    setEditingFinanceId(null);
+    setFinanceForm({ desc: "", amount: "", date: "", method: "Settlement", status: "Pending" });
+  };
+
   const displayPartnerName = selectedPartner === "SGS" ? "SGS" : (otherPartnerName.trim() || "Other");
 
   const handleReportViewDetails = (report: ReportRow) => setSelectedReport(report);
@@ -1276,13 +1333,12 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {[
-                        { id: "TXN-8821", date: "Jan 28, 2026", desc: "Batch Assay Fee - O-1234", amount: "$1,200.00", status: "Paid", method: "Settlement" },
-                        { id: "TXN-8820", date: "Jan 25, 2026", desc: "Expedited Testing - O-1243", amount: "$450.00", status: "Pending", method: "Direct Debit" },
-                        { id: "TXN-8819", date: "Jan 20, 2026", desc: "Retest Verification - O-1236", amount: "$150.00", status: "Paid", method: "Settlement" },
-                        { id: "TXN-8818", date: "Jan 18, 2026", desc: "SLA Tier Upgrade - Q1", amount: "$5,000.00", status: "Paid", method: "Wire" },
-                      ].map((txn) => (
-                        <TableRow key={txn.id} className="border-slate-100 dark:border-slate-800">
+                      {financeTransactions.map((txn) => (
+                        <TableRow
+                          key={txn.id}
+                          className={`border-slate-100 dark:border-slate-800 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${editingFinanceId === txn.id ? "bg-emerald-50 dark:bg-emerald-900/20 ring-inset ring-1 ring-emerald-200 dark:ring-emerald-800" : ""}`}
+                          onClick={() => handleFinanceRowClick(txn)}
+                        >
                           <TableCell className="px-8 font-black text-slate-900 dark:text-white text-sm">{txn.id}</TableCell>
                           <TableCell className="text-xs font-bold text-slate-500">{txn.date}</TableCell>
                           <TableCell className="text-xs font-bold text-slate-700 dark:text-slate-300">{txn.desc}</TableCell>
@@ -1298,6 +1354,87 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
                     </TableBody>
                   </Table>
                 </div>
+              </Card>
+
+              <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-black flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                    <DollarSign className="w-4 h-4 text-emerald-500" />
+                    {editingFinanceId ? "Edit finance detail" : "Add finance detail"}
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
+                    {editingFinanceId
+                      ? `Editing ${editingFinanceId}. Change the fields below and click Save changes.`
+                      : "Click a row in the table above to edit it, or add a new transaction here."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</Label>
+                      <Input
+                        placeholder="e.g. Batch Assay Fee - O-1234"
+                        value={financeForm.desc}
+                        onChange={(e) => setFinanceForm((f) => ({ ...f, desc: e.target.value }))}
+                        className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</Label>
+                      <Input
+                        placeholder="e.g. 1200 or $1,200.00"
+                        value={financeForm.amount}
+                        onChange={(e) => setFinanceForm((f) => ({ ...f, amount: e.target.value }))}
+                        className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</Label>
+                      <Input
+                        placeholder="e.g. Jan 28, 2026"
+                        value={financeForm.date}
+                        onChange={(e) => setFinanceForm((f) => ({ ...f, date: e.target.value }))}
+                        className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</Label>
+                      <Select value={financeForm.method} onValueChange={(v) => setFinanceForm((f) => ({ ...f, method: v }))}>
+                        <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Settlement">Settlement</SelectItem>
+                          <SelectItem value="Direct Debit">Direct Debit</SelectItem>
+                          <SelectItem value="Wire">Wire</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</Label>
+                      <Select value={financeForm.status} onValueChange={(v) => setFinanceForm((f) => ({ ...f, status: v }))}>
+                        <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Paid">Paid</SelectItem>
+                          <SelectItem value="Pending">Pending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Button className="bg-slate-900 text-white hover:bg-slate-800 rounded-xl gap-2 h-10 font-semibold px-5" onClick={saveFinanceDetail}>
+                      <DollarSign className="w-4 h-4" />
+                      {editingFinanceId ? "Save changes" : "Add to details"}
+                    </Button>
+                    {editingFinanceId && (
+                      <Button variant="outline" className="rounded-xl h-10 font-semibold px-5 border-slate-200" onClick={cancelEditFinance}>
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
               </Card>
           </div>
         </TabsContent>
