@@ -34,7 +34,9 @@ import {
   FileCheck,
   TrendingUp,
   History,
-  Info
+  Info,
+  Upload,
+  Link2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "../ui/card";
 import { Button } from "../ui/button";
@@ -326,6 +328,38 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
   const cancelEditFinance = () => {
     setEditingFinanceId(null);
     setFinanceForm({ desc: "", amount: "", date: "", method: "Settlement", status: "Pending" });
+  };
+
+  const [paymentLink, setPaymentLink] = useState("");
+  const [logisticsLink, setLogisticsLink] = useState("");
+  const [proofDocNames, setProofDocNames] = useState<string[]>([]);
+  const proofFileInputRef = React.useRef<HTMLInputElement>(null);
+  const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files?.length) {
+      const names = Array.from(files).map((f) => f.name);
+      setProofDocNames((prev) => [...prev, ...names]);
+      toast.success("Document uploaded for proof", { description: names.join(", ") });
+    }
+    e.target.value = "";
+  };
+  const handleSendPaymentLink = () => {
+    const link = paymentLink.trim();
+    if (!link) {
+      toast.error("Enter a payment link", { description: "Paste the payment URL to send to the partner." });
+      return;
+    }
+    toast.success("Payment link sent", { description: `Link sent to ${displayPartnerName}. Partner can use it for payment.` });
+    setPaymentLink("");
+  };
+  const handleSendLogisticsLink = () => {
+    const link = logisticsLink.trim();
+    if (!link) {
+      toast.error("Enter a logistics link", { description: "Paste the tracking or logistics URL to send to the partner." });
+      return;
+    }
+    toast.success("Logistics link sent", { description: `Link sent to ${displayPartnerName}. Partner can use it for shipment tracking.` });
+    setLogisticsLink("");
   };
 
   const displayPartnerName = selectedPartner === "SGS" ? "SGS" : (otherPartnerName.trim() || "Other");
@@ -689,6 +723,104 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
                   </Card>
                 </div>
               </div>
+
+              {/* 3rd party: Documents, payments & logistics */}
+              <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+                <CardHeader className="px-8 py-6 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
+                      <Share2 className="w-5 h-5 text-emerald-500" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg font-black text-slate-900 dark:text-white">Documents, payments & logistics</CardTitle>
+                      <CardDescription className="text-xs font-medium text-slate-500 mt-0.5">Upload proof documents and send payment or logistics links to {displayPartnerName}.</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-8">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Upload document for proof */}
+                    <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-6 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                          <Upload className="w-4 h-4 text-emerald-500" />
+                        </div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Upload document for proof</h4>
+                      </div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Certificates, invoices, or compliance proof. PDF, DOC, images.</p>
+                      <input
+                        ref={proofFileInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                        multiple
+                        className="hidden"
+                        onChange={handleProofUpload}
+                      />
+                      <Button
+                        variant="outline"
+                        className="w-full rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 h-20 flex flex-col gap-1.5 hover:border-emerald-300 dark:hover:border-emerald-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 bg-white dark:bg-slate-800/50"
+                        onClick={() => proofFileInputRef.current?.click()}
+                      >
+                        <Upload className="w-5 h-5 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Choose file(s)</span>
+                      </Button>
+                      {proofDocNames.length > 0 && (
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-3 space-y-2">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Uploaded ({proofDocNames.length})</p>
+                          <ul className="text-xs font-medium text-slate-600 dark:text-slate-400 space-y-1 max-h-20 overflow-y-auto">
+                            {proofDocNames.slice(-5).map((name, i) => (
+                              <li key={i} className="truncate flex items-center gap-1.5" title={name}>
+                                <FileText className="w-3 h-3 flex-shrink-0 text-slate-400" />
+                                {name}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                    {/* Send payment link */}
+                    <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-6 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                          <DollarSign className="w-4 h-4 text-emerald-500" />
+                        </div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Send payment link</h4>
+                      </div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Share payment or invoice URL with the partner.</p>
+                      <Input
+                        placeholder="https://..."
+                        value={paymentLink}
+                        onChange={(e) => setPaymentLink(e.target.value)}
+                        className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium h-10"
+                      />
+                      <Button className="w-full bg-slate-900 text-white hover:bg-slate-800 rounded-xl gap-2 h-10 font-semibold text-sm" onClick={handleSendPaymentLink}>
+                        <Link2 className="w-4 h-4" />
+                        Send link to partner
+                      </Button>
+                    </div>
+                    {/* Send logistics link */}
+                    <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-6 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                          <Truck className="w-4 h-4 text-emerald-500" />
+                        </div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Send logistics link</h4>
+                      </div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Share tracking or shipment URL with the partner.</p>
+                      <Input
+                        placeholder="https://..."
+                        value={logisticsLink}
+                        onChange={(e) => setLogisticsLink(e.target.value)}
+                        className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium h-10"
+                      />
+                      <Button className="w-full bg-slate-900 text-white hover:bg-slate-800 rounded-xl gap-2 h-10 font-semibold text-sm" onClick={handleSendLogisticsLink}>
+                        <Link2 className="w-4 h-4" />
+                        Send link to partner
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
           </div>
         </TabsContent>
 
