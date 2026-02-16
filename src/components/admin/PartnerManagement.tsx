@@ -81,7 +81,7 @@ import { Label } from "../ui/label";
 import { toast } from "sonner@2.0.3";
 import { motion } from "motion/react";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
-import { useDashboardStore, type PartnerThirdPartyEntry } from "../../store/dashboardStore";
+import { useDashboardStore, type PartnerThirdPartyEntry, type PartnerThirdPartyStatus } from "../../store/dashboardStore";
 import { Checkbox } from "../ui/checkbox";
 import { 
   LineChart, 
@@ -362,8 +362,15 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
     setLogisticsLink("");
   };
 
+  const emptyThirdPartyForm = {
+    orderId: "", carrierName: "", trackingNumber: "", trackingUrl: "",
+    contactPhone: "", contactEmail: "", notes: "",
+    status: "Pending" as PartnerThirdPartyStatus,
+    expectedDeliveryDate: "", deliveredAt: "", testingPartner: "SGS",
+    shippingAmount: "", shippingCurrency: "USD",
+  };
   const [editingThirdPartyId, setEditingThirdPartyId] = useState<string | null>(null);
-  const [thirdPartyForm, setThirdPartyForm] = useState({ orderId: "", carrierName: "", trackingNumber: "", trackingUrl: "" });
+  const [thirdPartyForm, setThirdPartyForm] = useState(emptyThirdPartyForm);
   const partnerThirdPartyDetails = state.partnerThirdPartyDetails ?? [];
 
   const handleThirdPartyRowClick = (entry: PartnerThirdPartyEntry) => {
@@ -373,6 +380,15 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
       carrierName: entry.carrierName,
       trackingNumber: entry.trackingNumber,
       trackingUrl: entry.trackingUrl,
+      contactPhone: entry.contactPhone ?? "",
+      contactEmail: entry.contactEmail ?? "",
+      notes: entry.notes ?? "",
+      status: (entry.status ?? "Pending") as PartnerThirdPartyStatus,
+      expectedDeliveryDate: entry.expectedDeliveryDate ?? "",
+      deliveredAt: entry.deliveredAt ?? "",
+      testingPartner: entry.testingPartner ?? "SGS",
+      shippingAmount: entry.shippingAmount ?? "",
+      shippingCurrency: entry.shippingCurrency ?? "USD",
     });
   };
 
@@ -382,33 +398,42 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
       toast.error("Order / Shipment ID required", { description: "Enter an order or shipment ID." });
       return;
     }
-    const carrierName = thirdPartyForm.carrierName.trim();
-    const trackingNumber = thirdPartyForm.trackingNumber.trim();
-    const trackingUrl = thirdPartyForm.trackingUrl.trim();
+    const payload: Partial<PartnerThirdPartyEntry> & { id?: string; orderId: string; carrierName: string; trackingNumber: string; trackingUrl: string } = {
+      orderId,
+      carrierName: thirdPartyForm.carrierName.trim(),
+      trackingNumber: thirdPartyForm.trackingNumber.trim(),
+      trackingUrl: thirdPartyForm.trackingUrl.trim(),
+      contactPhone: thirdPartyForm.contactPhone.trim() || undefined,
+      contactEmail: thirdPartyForm.contactEmail.trim() || undefined,
+      notes: thirdPartyForm.notes.trim() || undefined,
+      status: thirdPartyForm.status,
+      expectedDeliveryDate: thirdPartyForm.expectedDeliveryDate.trim() || undefined,
+      deliveredAt: thirdPartyForm.deliveredAt.trim() || undefined,
+      testingPartner: thirdPartyForm.testingPartner || undefined,
+      shippingAmount: thirdPartyForm.shippingAmount.trim() || undefined,
+      shippingCurrency: thirdPartyForm.shippingCurrency || undefined,
+    };
     if (editingThirdPartyId) {
       const existing = partnerThirdPartyDetails.find((e) => e.id === editingThirdPartyId);
       if (existing) {
-        dispatch({
-          type: "UPDATE_PARTNER_THIRD_PARTY",
-          payload: { ...existing, orderId, carrierName, trackingNumber, trackingUrl },
-        });
+        dispatch({ type: "UPDATE_PARTNER_THIRD_PARTY", payload: { ...existing, ...payload } });
         toast.success("3rd party details updated", { description: `${orderId} — changes saved.` });
       }
     } else {
       const id = `TP-${Date.now()}`;
       dispatch({
         type: "ADD_PARTNER_THIRD_PARTY",
-        payload: { id, orderId, carrierName, trackingNumber, trackingUrl, submittedAt: new Date().toISOString().slice(0, 10) },
+        payload: { ...payload, id, submittedAt: new Date().toISOString().slice(0, 10) } as PartnerThirdPartyEntry,
       });
       toast.success("3rd party details saved", { description: `${orderId} — recorded.` });
     }
-    setThirdPartyForm({ orderId: "", carrierName: "", trackingNumber: "", trackingUrl: "" });
+    setThirdPartyForm(emptyThirdPartyForm);
     setEditingThirdPartyId(null);
   };
 
   const cancelEditThirdParty = () => {
     setEditingThirdPartyId(null);
-    setThirdPartyForm({ orderId: "", carrierName: "", trackingNumber: "", trackingUrl: "" });
+    setThirdPartyForm(emptyThirdPartyForm);
   };
 
   const displayPartnerName = selectedPartner === "SGS" ? "SGS" : (otherPartnerName.trim() || "Other");
@@ -1673,6 +1698,113 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
                     className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
                   />
                 </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contact phone</Label>
+                    <Input
+                      placeholder="+1 234 567 8900"
+                      value={thirdPartyForm.contactPhone}
+                      onChange={(e) => setThirdPartyForm((f) => ({ ...f, contactPhone: e.target.value }))}
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contact email</Label>
+                    <Input
+                      type="email"
+                      placeholder="support@carrier.com"
+                      value={thirdPartyForm.contactEmail}
+                      onChange={(e) => setThirdPartyForm((f) => ({ ...f, contactEmail: e.target.value }))}
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Notes</Label>
+                  <Input
+                    placeholder="Optional notes (e.g. Fragile, Sample for assay)"
+                    value={thirdPartyForm.notes}
+                    onChange={(e) => setThirdPartyForm((f) => ({ ...f, notes: e.target.value }))}
+                    className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</Label>
+                    <Select value={thirdPartyForm.status} onValueChange={(v) => setThirdPartyForm((f) => ({ ...f, status: v as PartnerThirdPartyStatus }))}>
+                      <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="In transit">In transit</SelectItem>
+                        <SelectItem value="Delivered">Delivered</SelectItem>
+                        <SelectItem value="Sample received at lab">Sample received at lab</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Expected delivery date</Label>
+                    <Input
+                      placeholder="e.g. Feb 05, 2026"
+                      value={thirdPartyForm.expectedDeliveryDate}
+                      onChange={(e) => setThirdPartyForm((f) => ({ ...f, expectedDeliveryDate: e.target.value }))}
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Delivered time</Label>
+                    <Input
+                      placeholder="e.g. Feb 10, 2026 14:30"
+                      value={thirdPartyForm.deliveredAt}
+                      onChange={(e) => setThirdPartyForm((f) => ({ ...f, deliveredAt: e.target.value }))}
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Testing partner</Label>
+                    <Select value={thirdPartyForm.testingPartner} onValueChange={(v) => setThirdPartyForm((f) => ({ ...f, testingPartner: v }))}>
+                      <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="SGS">SGS</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
+                      Shipping / cost amount
+                    </Label>
+                    <Input
+                      placeholder="e.g. 150.00"
+                      value={thirdPartyForm.shippingAmount}
+                      onChange={(e) => setThirdPartyForm((f) => ({ ...f, shippingAmount: e.target.value }))}
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Currency</Label>
+                    <Select value={thirdPartyForm.shippingCurrency} onValueChange={(v) => setThirdPartyForm((f) => ({ ...f, shippingCurrency: v }))}>
+                      <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="EUR">EUR</SelectItem>
+                        <SelectItem value="GBP">GBP</SelectItem>
+                        <SelectItem value="GHS">GHS</SelectItem>
+                        <SelectItem value="CHF">CHF</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-3">
                   <Button className="rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-semibold px-6 h-10" onClick={saveThirdPartyDetails}>
                     {editingThirdPartyId ? "Save changes" : "Save 3rd Party Details"}
@@ -1698,13 +1830,18 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
                       <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-8">Order / Shipment ID</TableHead>
                       <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carrier</TableHead>
                       <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tracking Number</TableHead>
+                      <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</TableHead>
+                      <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Expected delivery</TableHead>
+                      <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Delivered</TableHead>
+                      <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Partner</TableHead>
                       <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tracking URL</TableHead>
+                      <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {partnerThirdPartyDetails.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">
+                        <TableCell colSpan={9} className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">
                           No 3rd party records yet. Use the form above to add details by order or shipment ID.
                         </TableCell>
                       </TableRow>
@@ -1718,7 +1855,20 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
                           <TableCell className="px-8 font-black text-slate-900 dark:text-white text-sm">{entry.orderId}</TableCell>
                           <TableCell className="text-xs font-bold text-slate-700 dark:text-slate-300">{entry.carrierName || "—"}</TableCell>
                           <TableCell className="text-xs font-bold text-slate-600 dark:text-slate-400">{entry.trackingNumber || "—"}</TableCell>
-                          <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate max-w-[200px]" title={entry.trackingUrl || ""}>{entry.trackingUrl || "—"}</TableCell>
+                          <TableCell>
+                            <Badge className={`border-none font-black text-[9px] uppercase tracking-tighter ${entry.status === "Sample received at lab" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : entry.status === "Delivered" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : entry.status === "In transit" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"}`}>
+                              {entry.status || "—"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-400">{entry.expectedDeliveryDate || "—"}</TableCell>
+                          <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-400">{entry.deliveredAt || "—"}</TableCell>
+                          <TableCell className="text-xs font-bold text-slate-600 dark:text-slate-400">{entry.testingPartner || "—"}</TableCell>
+                          <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate max-w-[180px]" title={entry.trackingUrl || ""}>{entry.trackingUrl || "—"}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400" onClick={(e) => { e.stopPropagation(); handleThirdPartyRowClick(entry); }}>
+                              Edit
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}

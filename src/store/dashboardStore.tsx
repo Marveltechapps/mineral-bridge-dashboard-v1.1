@@ -73,6 +73,9 @@ export interface LogisticsDetails {
   updatedAt: string;
 }
 
+/** Status for 3rd party testing/certification shipment. */
+export type PartnerThirdPartyStatus = "Pending" | "In transit" | "Delivered" | "Sample received at lab";
+
 /** 3rd party details for Testing & Certification (submitted by users in the app; displayed in Partners → 3rd Party Details; admin can edit). */
 export interface PartnerThirdPartyEntry {
   id: string;
@@ -82,6 +85,17 @@ export interface PartnerThirdPartyEntry {
   trackingUrl: string;
   /** When the user submitted (e.g. from app). */
   submittedAt?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  notes?: string;
+  status?: PartnerThirdPartyStatus;
+  expectedDeliveryDate?: string;
+  /** Actual delivered time (when status is Delivered or Sample received at lab). */
+  deliveredAt?: string;
+  /** Testing partner (e.g. SGS, Other). */
+  testingPartner?: string;
+  shippingAmount?: string;
+  shippingCurrency?: string;
 }
 
 /** Step-specific data when admin completes a flow step (e.g. final amount at Price Confirmed) */
@@ -965,9 +979,11 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
         trackingNumber: added.trackingNumber,
         trackingUrl: added.trackingUrl,
         qrPayload: added.trackingUrl || "",
-        contactPhone: "",
-        contactEmail: "",
-        notes: "",
+        contactPhone: added.contactPhone ?? "",
+        contactEmail: added.contactEmail ?? "",
+        notes: added.notes ?? "",
+        shippingAmount: added.shippingAmount,
+        shippingCurrency: added.shippingCurrency,
         updatedAt: added.submittedAt ?? new Date().toISOString().slice(0, 10),
       };
       return {
@@ -986,11 +1002,11 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
         trackingNumber: p.trackingNumber,
         trackingUrl: p.trackingUrl,
         qrPayload: (p.trackingUrl || existingLog?.qrPayload) ?? "",
-        contactPhone: existingLog?.contactPhone ?? "",
-        contactEmail: existingLog?.contactEmail ?? "",
-        notes: existingLog?.notes ?? "",
-        shippingAmount: existingLog?.shippingAmount,
-        shippingCurrency: existingLog?.shippingCurrency,
+        contactPhone: p.contactPhone ?? existingLog?.contactPhone ?? "",
+        contactEmail: p.contactEmail ?? existingLog?.contactEmail ?? "",
+        notes: p.notes ?? existingLog?.notes ?? "",
+        shippingAmount: p.shippingAmount ?? existingLog?.shippingAmount,
+        shippingCurrency: p.shippingCurrency ?? existingLog?.shippingCurrency,
         updatedAt: new Date().toISOString().slice(0, 10),
       };
       const nextLogistics = { ...state.logisticsDetails, [p.orderId]: logisticsForOrder };
@@ -1096,9 +1112,9 @@ const initialState: DashboardState = {
   },
   /** User-submitted 3rd party details (Testing & Certification); displayed in Recent 3rd party details; admin can edit. */
   partnerThirdPartyDetails: [
-    { id: "TP-U-1", orderId: "O-1234", carrierName: "DHL Global", trackingNumber: "DHL9876543210", trackingUrl: "https://track.dhl.com/ref=DHL9876543210", submittedAt: "Jan 28, 2026" },
-    { id: "TP-U-2", orderId: "O-1243", carrierName: "FedEx", trackingNumber: "FX1234567890", trackingUrl: "https://fedex.com/track/FX1234567890", submittedAt: "Jan 25, 2026" },
-    { id: "TP-U-3", orderId: "S-ORD-8821", carrierName: "Mineral Bridge Logistics", trackingNumber: "MB-SELL-8821", trackingUrl: "https://track.mineralbridge.com/S-ORD-8821", submittedAt: "Feb 05, 2026" },
+    { id: "TP-U-1", orderId: "O-1234", carrierName: "DHL Global", trackingNumber: "DHL9876543210", trackingUrl: "https://track.dhl.com/ref=DHL9876543210", submittedAt: "Jan 28, 2026", contactPhone: "+233 24 555 0192", contactEmail: "support@dhl.com", notes: "Sample for assay", status: "In transit", expectedDeliveryDate: "Feb 05, 2026", deliveredAt: "", testingPartner: "SGS", shippingAmount: "150", shippingCurrency: "USD" },
+    { id: "TP-U-2", orderId: "O-1243", carrierName: "FedEx", trackingNumber: "FX1234567890", trackingUrl: "https://fedex.com/track/FX1234567890", submittedAt: "Jan 25, 2026", status: "Delivered", expectedDeliveryDate: "Jan 28, 2026", deliveredAt: "Jan 28, 2026", testingPartner: "Other", shippingAmount: "85", shippingCurrency: "USD" },
+    { id: "TP-U-3", orderId: "S-ORD-8821", carrierName: "Mineral Bridge Logistics", trackingNumber: "MB-SELL-8821", trackingUrl: "https://track.mineralbridge.com/S-ORD-8821", submittedAt: "Feb 05, 2026", status: "Sample received at lab", expectedDeliveryDate: "Feb 06, 2026", deliveredAt: "Feb 05, 2026", testingPartner: "SGS" },
   ],
   appActivities: [
     { id: "app-1", userId: DEFAULT_USER_ID, type: "profile_updated", description: "Profile name and phone updated", at: new Date(Date.now() - 86400000).toISOString() },
