@@ -81,7 +81,7 @@ import { Label } from "../ui/label";
 import { toast } from "sonner@2.0.3";
 import { motion } from "motion/react";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
-import { useDashboardStore } from "../../store/dashboardStore";
+import { useDashboardStore, type PartnerThirdPartyEntry } from "../../store/dashboardStore";
 import { Checkbox } from "../ui/checkbox";
 import { 
   LineChart, 
@@ -248,7 +248,7 @@ export interface PartnerManagementProps {
 }
 
 export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementProps = {}) {
-  const { state } = useDashboardStore();
+  const { state, dispatch } = useDashboardStore();
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedPartner, setSelectedPartner] = useState<TestingPartner>("SGS");
   const [otherPartnerName, setOtherPartnerName] = useState("");
@@ -360,6 +360,55 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
     }
     toast.success("Logistics link sent", { description: `Link sent to ${displayPartnerName}. Partner can use it for shipment tracking.` });
     setLogisticsLink("");
+  };
+
+  const [editingThirdPartyId, setEditingThirdPartyId] = useState<string | null>(null);
+  const [thirdPartyForm, setThirdPartyForm] = useState({ orderId: "", carrierName: "", trackingNumber: "", trackingUrl: "" });
+  const partnerThirdPartyDetails = state.partnerThirdPartyDetails ?? [];
+
+  const handleThirdPartyRowClick = (entry: PartnerThirdPartyEntry) => {
+    setEditingThirdPartyId(entry.id);
+    setThirdPartyForm({
+      orderId: entry.orderId,
+      carrierName: entry.carrierName,
+      trackingNumber: entry.trackingNumber,
+      trackingUrl: entry.trackingUrl,
+    });
+  };
+
+  const saveThirdPartyDetails = () => {
+    const orderId = thirdPartyForm.orderId.trim();
+    if (!orderId) {
+      toast.error("Order / Shipment ID required", { description: "Enter an order or shipment ID." });
+      return;
+    }
+    const carrierName = thirdPartyForm.carrierName.trim();
+    const trackingNumber = thirdPartyForm.trackingNumber.trim();
+    const trackingUrl = thirdPartyForm.trackingUrl.trim();
+    if (editingThirdPartyId) {
+      const existing = partnerThirdPartyDetails.find((e) => e.id === editingThirdPartyId);
+      if (existing) {
+        dispatch({
+          type: "UPDATE_PARTNER_THIRD_PARTY",
+          payload: { ...existing, orderId, carrierName, trackingNumber, trackingUrl },
+        });
+        toast.success("3rd party details updated", { description: `${orderId} — changes saved.` });
+      }
+    } else {
+      const id = `TP-${Date.now()}`;
+      dispatch({
+        type: "ADD_PARTNER_THIRD_PARTY",
+        payload: { id, orderId, carrierName, trackingNumber, trackingUrl, submittedAt: new Date().toISOString().slice(0, 10) },
+      });
+      toast.success("3rd party details saved", { description: `${orderId} — recorded.` });
+    }
+    setThirdPartyForm({ orderId: "", carrierName: "", trackingNumber: "", trackingUrl: "" });
+    setEditingThirdPartyId(null);
+  };
+
+  const cancelEditThirdParty = () => {
+    setEditingThirdPartyId(null);
+    setThirdPartyForm({ orderId: "", carrierName: "", trackingNumber: "", trackingUrl: "" });
   };
 
   const displayPartnerName = selectedPartner === "SGS" ? "SGS" : (otherPartnerName.trim() || "Other");
@@ -516,6 +565,9 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
           </TabsTrigger>
           <TabsTrigger value="financials" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400">
             Financials
+          </TabsTrigger>
+          <TabsTrigger value="third-party" className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-emerald-400">
+            3rd Party Details
           </TabsTrigger>
         </TabsList>
 
@@ -1568,6 +1620,112 @@ export function PartnerManagement({ onNavigateToCompliance }: PartnerManagementP
                   </div>
                 </CardContent>
               </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="third-party" className="mt-4">
+          <div className="space-y-6">
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+              <CardHeader className="px-8 py-6 border-b border-slate-100 dark:border-slate-800">
+                <CardTitle className="text-lg font-black text-slate-900 dark:text-white">{editingThirdPartyId ? "Edit 3rd Party Details" : "3rd Party Details"}</CardTitle>
+                <CardDescription className="text-xs font-medium text-slate-500 mt-1">
+                  {editingThirdPartyId ? "Editing selected record. Change fields and click Save, or Cancel to clear." : "Manage 3rd party testing and certification details by order or shipment. Enter carrier and tracking information for lab samples or certificates."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Order / Shipment ID</Label>
+                    <Input
+                      placeholder="e.g. O-1234"
+                      value={thirdPartyForm.orderId}
+                      onChange={(e) => setThirdPartyForm((f) => ({ ...f, orderId: e.target.value }))}
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carrier Name</Label>
+                    <Input
+                      placeholder="e.g. DHL Global"
+                      value={thirdPartyForm.carrierName}
+                      onChange={(e) => setThirdPartyForm((f) => ({ ...f, carrierName: e.target.value }))}
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tracking Number</Label>
+                    <Input
+                      placeholder="e.g. DHL1234567890"
+                      value={thirdPartyForm.trackingNumber}
+                      onChange={(e) => setThirdPartyForm((f) => ({ ...f, trackingNumber: e.target.value }))}
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tracking URL</Label>
+                  <Input
+                    placeholder="https://track.carrier.com/..."
+                    value={thirdPartyForm.trackingUrl}
+                    onChange={(e) => setThirdPartyForm((f) => ({ ...f, trackingUrl: e.target.value }))}
+                    className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button className="rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-semibold px-6 h-10" onClick={saveThirdPartyDetails}>
+                    {editingThirdPartyId ? "Save changes" : "Save 3rd Party Details"}
+                  </Button>
+                  {editingThirdPartyId && (
+                    <Button variant="outline" className="rounded-xl h-10 font-semibold px-5 border-slate-200" onClick={cancelEditThirdParty}>
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+              <CardHeader className="px-8 py-6 border-b border-slate-100 dark:border-slate-800">
+                <CardTitle className="text-lg font-black text-slate-900 dark:text-white">Recent 3rd party details</CardTitle>
+                <CardDescription className="text-xs font-medium text-slate-500 mt-1">Details submitted by users in the app. Click a row to edit it in the 3rd Party Details section above, then save changes.</CardDescription>
+              </CardHeader>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-slate-50/50">
+                    <TableRow className="border-none">
+                      <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-8">Order / Shipment ID</TableHead>
+                      <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carrier</TableHead>
+                      <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tracking Number</TableHead>
+                      <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tracking URL</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {partnerThirdPartyDetails.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">
+                          No 3rd party records yet. Use the form above to add details by order or shipment ID.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      partnerThirdPartyDetails.map((entry) => (
+                        <TableRow
+                          key={entry.id}
+                          className={`border-slate-100 dark:border-slate-800 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${editingThirdPartyId === entry.id ? "bg-emerald-50 dark:bg-emerald-900/20 ring-inset ring-1 ring-emerald-200 dark:ring-emerald-800" : ""}`}
+                          onClick={() => handleThirdPartyRowClick(entry)}
+                        >
+                          <TableCell className="px-8 font-black text-slate-900 dark:text-white text-sm">{entry.orderId}</TableCell>
+                          <TableCell className="text-xs font-bold text-slate-700 dark:text-slate-300">{entry.carrierName || "—"}</TableCell>
+                          <TableCell className="text-xs font-bold text-slate-600 dark:text-slate-400">{entry.trackingNumber || "—"}</TableCell>
+                          <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate max-w-[200px]" title={entry.trackingUrl || ""}>{entry.trackingUrl || "—"}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>

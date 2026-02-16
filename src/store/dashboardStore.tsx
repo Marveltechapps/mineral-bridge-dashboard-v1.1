@@ -73,6 +73,17 @@ export interface LogisticsDetails {
   updatedAt: string;
 }
 
+/** 3rd party details for Testing & Certification (submitted by users in the app; displayed in Partners → 3rd Party Details; admin can edit). */
+export interface PartnerThirdPartyEntry {
+  id: string;
+  orderId: string;
+  carrierName: string;
+  trackingNumber: string;
+  trackingUrl: string;
+  /** When the user submitted (e.g. from app). */
+  submittedAt?: string;
+}
+
 /** Step-specific data when admin completes a flow step (e.g. final amount at Price Confirmed) */
 export interface OrderFlowStepData {
   priceConfirmed?: { finalAmount: string; currency: string; confirmedAt: string; note?: string };
@@ -364,6 +375,8 @@ export interface DashboardState {
   kycVerificationResults: Record<string, KycVerificationResult>;
   /** 3rd party logistics details keyed by order/shipment ID. Dashboard enters; app shows link + QR. */
   logisticsDetails: Record<string, LogisticsDetails>;
+  /** 3rd party details for Testing & Certification (input from users in the app; shown in Recent 3rd party details; admin can edit). */
+  partnerThirdPartyDetails: PartnerThirdPartyEntry[];
   /** Custom mineral categories created in catalog (e.g. in addition to Precious metals, Base metals, Energy minerals, Other). */
   customCategories: string[];
   /** Custom sell submission categories (e.g. in addition to Raw, Semi-Processed, Processed). */
@@ -784,6 +797,8 @@ export type DashboardAction =
   | { type: "RECORD_VERIFICATION"; payload: VerificationLogEntry }
   | { type: "SET_KYC_VERIFICATION"; payload: { userId: string; result: KycVerificationResult } }
   | { type: "SET_LOGISTICS_DETAILS"; payload: LogisticsDetails }
+  | { type: "ADD_PARTNER_THIRD_PARTY"; payload: PartnerThirdPartyEntry }
+  | { type: "UPDATE_PARTNER_THIRD_PARTY"; payload: PartnerThirdPartyEntry }
   | { type: "ADD_VIDEO_CALL"; payload: { userId: string; entry: VideoCallEntry } }
   | { type: "UPDATE_ARTISANAL_PROFILE_STATUS"; payload: { userId: string; status: "approved" | "rejected" } }
   | { type: "ADD_ARTISANAL_DOCUMENT_REQUEST"; payload: { userId: string; entry: import("../types/userDetails").ArtisanalDocumentRequest } }
@@ -942,6 +957,52 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
         logisticsDetails: { ...state.logisticsDetails, [d.orderId]: d },
       };
     }
+    case "ADD_PARTNER_THIRD_PARTY": {
+      const added = action.payload;
+      const logisticsForOrder: LogisticsDetails = {
+        orderId: added.orderId,
+        carrierName: added.carrierName,
+        trackingNumber: added.trackingNumber,
+        trackingUrl: added.trackingUrl,
+        qrPayload: added.trackingUrl || "",
+        contactPhone: "",
+        contactEmail: "",
+        notes: "",
+        updatedAt: added.submittedAt ?? new Date().toISOString().slice(0, 10),
+      };
+      return {
+        ...state,
+        partnerThirdPartyDetails: [...state.partnerThirdPartyDetails, added],
+        logisticsDetails: { ...state.logisticsDetails, [added.orderId]: logisticsForOrder },
+      };
+    }
+    case "UPDATE_PARTNER_THIRD_PARTY": {
+      const p = action.payload;
+      const existingEntry = state.partnerThirdPartyDetails.find((e) => e.id === p.id);
+      const existingLog = state.logisticsDetails[p.orderId];
+      const logisticsForOrder: LogisticsDetails = {
+        orderId: p.orderId,
+        carrierName: p.carrierName,
+        trackingNumber: p.trackingNumber,
+        trackingUrl: p.trackingUrl,
+        qrPayload: (p.trackingUrl || existingLog?.qrPayload) ?? "",
+        contactPhone: existingLog?.contactPhone ?? "",
+        contactEmail: existingLog?.contactEmail ?? "",
+        notes: existingLog?.notes ?? "",
+        shippingAmount: existingLog?.shippingAmount,
+        shippingCurrency: existingLog?.shippingCurrency,
+        updatedAt: new Date().toISOString().slice(0, 10),
+      };
+      const nextLogistics = { ...state.logisticsDetails, [p.orderId]: logisticsForOrder };
+      if (existingEntry && existingEntry.orderId !== p.orderId) {
+        delete nextLogistics[existingEntry.orderId];
+      }
+      return {
+        ...state,
+        partnerThirdPartyDetails: state.partnerThirdPartyDetails.map((e) => (e.id === p.id ? p : e)),
+        logisticsDetails: nextLogistics,
+      };
+    }
     case "ADD_VIDEO_CALL": {
       const { userId, entry } = action.payload;
       const existing = state.userDetails[userId] ?? { loginActivity: [], devices: [], securityNotes: [], activityLog: [], videoCalls: [] };
@@ -1033,6 +1094,12 @@ const initialState: DashboardState = {
       updatedAt: "Feb 05, 2026",
     },
   },
+  /** User-submitted 3rd party details (Testing & Certification); displayed in Recent 3rd party details; admin can edit. */
+  partnerThirdPartyDetails: [
+    { id: "TP-U-1", orderId: "O-1234", carrierName: "DHL Global", trackingNumber: "DHL9876543210", trackingUrl: "https://track.dhl.com/ref=DHL9876543210", submittedAt: "Jan 28, 2026" },
+    { id: "TP-U-2", orderId: "O-1243", carrierName: "FedEx", trackingNumber: "FX1234567890", trackingUrl: "https://fedex.com/track/FX1234567890", submittedAt: "Jan 25, 2026" },
+    { id: "TP-U-3", orderId: "S-ORD-8821", carrierName: "Mineral Bridge Logistics", trackingNumber: "MB-SELL-8821", trackingUrl: "https://track.mineralbridge.com/S-ORD-8821", submittedAt: "Feb 05, 2026" },
+  ],
   appActivities: [
     { id: "app-1", userId: DEFAULT_USER_ID, type: "profile_updated", description: "Profile name and phone updated", at: new Date(Date.now() - 86400000).toISOString() },
     { id: "app-2", userId: DEFAULT_USER_ID, type: "kyc_doc_uploaded", description: "Mining License (Front) uploaded", at: new Date(Date.now() - 43200000).toISOString() },
@@ -1109,6 +1176,11 @@ export function getKycVerificationResult(state: DashboardState, userId: string):
 
 export function getLogisticsDetailsForOrder(state: DashboardState, orderId: string): LogisticsDetails | undefined {
   return state.logisticsDetails[orderId];
+}
+
+/** 3rd party (testing & certification) details for an order. Edits in Partners → 3rd Party Details are synced to logisticsDetails so they appear in Order, Financial, and Transaction views. */
+export function getPartnerThirdPartyForOrder(state: DashboardState, orderId: string): PartnerThirdPartyEntry | undefined {
+  return state.partnerThirdPartyDetails.find((e) => e.orderId === orderId);
 }
 
 export function useDashboardStats() {
