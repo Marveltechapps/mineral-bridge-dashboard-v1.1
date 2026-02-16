@@ -22,18 +22,34 @@ export function LoginScreen({ onLogin, onForgotPassword, onRequestAccess }: Logi
   const [code2fa, setCode2fa] = useState("");
   const [language, setLanguage] = useState("en");
   const [loginError, setLoginError] = useState("");
+  const [step, setStep] = useState<"credentials" | "2fa">("credentials");
+  const [pendingUser, setPendingUser] = useState<AdminUser | null>(null);
   const roleContext = useRoleOptional();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
+    if (step === "2fa") {
+      if (code2fa.trim().length >= 6 && pendingUser) {
+        onLogin(pendingUser);
+        setStep("credentials");
+        setPendingUser(null);
+        setCode2fa("");
+      } else {
+        setLoginError("Enter your 6-digit 2FA code.");
+      }
+      return;
+    }
     if (!email?.trim() || !password) {
       setLoginError("Enter email and password.");
       return;
     }
     const admin = roleContext?.getAdminByCredentials(email.trim(), password);
     if (admin) {
-      onLogin(admin);
+      setPendingUser(admin);
+      setStep("2fa");
+      setCode2fa("");
+      setLoginError("");
     } else {
       setLoginError("Invalid email or password, or account inactive.");
       toast.error("Login failed", { description: "Check your email and password." });
@@ -45,10 +61,16 @@ export function LoginScreen({ onLogin, onForgotPassword, onRequestAccess }: Logi
     setPassword("demo123");
     setCode2fa("123456");
     setLoginError("");
+    setStep("credentials");
+    setPendingUser(null);
     const admin = roleContext?.getAdminByCredentials("admin@mineralbridge.com", "demo123");
     setTimeout(() => {
-      if (admin) onLogin(admin);
-      else onLogin({ id: "1", name: "Admin", email: "admin@mineralbridge.com", role: "ceo" });
+      if (admin) {
+        setPendingUser(admin);
+        setStep("2fa");
+      } else {
+        onLogin({ id: "1", name: "Admin", email: "admin@mineralbridge.com", role: "ceo" });
+      }
     }, 500);
   };
 
@@ -98,47 +120,61 @@ export function LoginScreen({ onLogin, onForgotPassword, onRequestAccess }: Logi
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email or Username</Label>
-                <Input 
-                  id="email" 
-                  placeholder="admin@mineralbridge.com" 
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-white dark:bg-slate-900"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
+              {step === "credentials" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email or Username</Label>
+                    <Input 
+                      id="email" 
+                      placeholder="admin@mineralbridge.com" 
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Input 
+                        id="password" 
+                        type={showPassword ? "text" : "password"} 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="bg-white dark:bg-slate-900 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Enter the 6-digit code from your authenticator app.</p>
+                  <Label htmlFor="2fa">2FA Code</Label>
                   <Input 
-                    id="password" 
-                    type={showPassword ? "text" : "password"} 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-white dark:bg-slate-900 pr-10"
+                    id="2fa" 
+                    placeholder="• • • • • •" 
+                    maxLength={6}
+                    value={code2fa}
+                    onChange={(e) => setCode2fa(e.target.value.replace(/\D/g, ""))}
+                    className="bg-white dark:bg-slate-900 tracking-widest text-center font-mono text-lg"
+                    autoFocus
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    onClick={() => { setStep("credentials"); setPendingUser(null); setCode2fa(""); setLoginError(""); }}
+                    className="text-xs text-muted-foreground hover:text-slate-700 dark:hover:text-slate-300"
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    ← Back to credentials
                   </button>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="2fa">2FA Code (Optional for Demo)</Label>
-                <Input 
-                  id="2fa" 
-                  placeholder="• • • • • •" 
-                  maxLength={6}
-                  value={code2fa}
-                  onChange={(e) => setCode2fa(e.target.value)}
-                  className="bg-white dark:bg-slate-900 tracking-widest text-center font-mono"
-                />
-              </div>
+              )}
               {loginError && (
                 <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
                   {loginError}
@@ -146,7 +182,7 @@ export function LoginScreen({ onLogin, onForgotPassword, onRequestAccess }: Logi
               )}
               
               <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20">
-                Sign In
+                {step === "2fa" ? "Verify & Sign In" : "Sign In"}
               </Button>
 
               <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 mt-4">

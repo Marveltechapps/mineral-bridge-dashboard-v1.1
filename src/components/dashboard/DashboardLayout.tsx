@@ -32,7 +32,8 @@ import {
   ShieldCheck,
   FileText,
   Gavel,
-  Search
+  Search,
+  User
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -72,7 +73,9 @@ const menuItems = [
       { label: "Insurance", view: "insurance" }
     ]
   },
+  { icon: FileText, label: "Audit & Activity Log", view: "audit-log" },
   { icon: Settings, label: "Settings", view: "settings" },
+  { icon: HelpCircle, label: "Help & Documentation", view: "help" },
 ];
 
 interface DashboardLayoutProps {
@@ -285,13 +288,21 @@ export function DashboardLayout({ children, currentView = "dashboard", onViewCha
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => onViewChange?.('profile')} className="cursor-pointer">
+                      <User className="mr-2 h-4 w-4" />
+                      <span>My account</span>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onViewChange?.('settings')} className="cursor-pointer">
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Settings</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onViewChange?.('enquiries')} className="cursor-pointer">
+                    <DropdownMenuItem onClick={() => onViewChange?.('help')} className="cursor-pointer">
                       <HelpCircle className="mr-2 h-4 w-4" />
-                      <span>Help & Support</span>
+                      <span>Help & Documentation</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onViewChange?.('enquiries')} className="cursor-pointer">
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      <span>Enquiry & Support</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600">

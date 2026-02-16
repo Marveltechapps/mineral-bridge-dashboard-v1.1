@@ -330,11 +330,11 @@ export interface Enquiry {
   replies?: EnquiryReply[];
 }
 
-/** Activity recorded from the app (onboarding, profile, KYC, etc.) so the dashboard reflects every small detail. */
+/** Activity recorded from the app and dashboard (onboarding, profile, KYC, payments, bulk actions, etc.). */
 export interface AppActivity {
   id: string;
   userId: string;
-  type: "profile_updated" | "kyc_doc_uploaded" | "onboarding_step" | "listing_created" | "order_submitted" | "app_login" | "settings_updated" | "safety_upload" | "other";
+  type: "profile_updated" | "kyc_doc_uploaded" | "onboarding_step" | "listing_created" | "order_submitted" | "app_login" | "settings_updated" | "safety_upload" | "payment_released" | "bulk_export" | "email_sent" | "sms_sent" | "user_status_updated" | "enquiry_replied" | "dashboard_login" | "other";
   description: string;
   at: string;
   metadata?: Record<string, string>;
@@ -1036,7 +1036,9 @@ const initialState: DashboardState = {
   appActivities: [
     { id: "app-1", userId: DEFAULT_USER_ID, type: "profile_updated", description: "Profile name and phone updated", at: new Date(Date.now() - 86400000).toISOString() },
     { id: "app-2", userId: DEFAULT_USER_ID, type: "kyc_doc_uploaded", description: "Mining License (Front) uploaded", at: new Date(Date.now() - 43200000).toISOString() },
-    { id: "app-3", userId: "MB-USR-8821-B", type: "order_submitted", description: "Buy order created: Copper Cathodes 1,200 MT", at: new Date(Date.now() - 3600000).toISOString() },
+    { id: "app-3", userId: "MB-USR-8821-B", type: "order_submitted", description: "Buy order created: Copper Cathodes 1,200 MT", at: new Date(Date.now() - 3600000).toISOString(), metadata: { orderId: "MB-BO-1001" } },
+    { id: "app-4", userId: "1", type: "payment_released", description: "Payment released for transaction MB-TX-2001", at: new Date(Date.now() - 7200000).toISOString(), metadata: { transactionId: "MB-TX-2001", orderId: "MB-BO-1001" } },
+    { id: "app-5", userId: "1", type: "email_sent", description: "Enquiry reply sent to user MB-USR-4412-S", at: new Date(Date.now() - 1800000).toISOString(), metadata: { userId: "MB-USR-4412-S" } },
   ],
   customCategories: [],
   customSellCategories: [],

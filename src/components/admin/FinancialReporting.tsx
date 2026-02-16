@@ -37,6 +37,25 @@ export function FinancialReporting({
   const openEnquiriesCount = useMemo(() => state.enquiries.filter((e) => e.status !== "Resolved").length, [state.enquiries]);
   const [activeTab, setActiveTab] = useState<FinancialTab>("transactions");
   const [revenueOpenWithFailed, setRevenueOpenWithFailed] = useState(false);
+  const [dateRange, setDateRange] = useState<string>("feb2026");
+
+  const filteredTransactions = useMemo(() => {
+    const parseDate = (d: string) => {
+      const n = new Date(d);
+      return isNaN(n.getTime()) ? null : n;
+    };
+    const inRange = (tx: { date: string }) => {
+      const t = parseDate(tx.date);
+      if (!t) return true;
+      const y = t.getFullYear();
+      const m = t.getMonth();
+      if (dateRange === "jan2026") return y === 2026 && m === 0;
+      if (dateRange === "feb2026") return y === 2026 && m === 1;
+      if (dateRange === "ytd") return y === 2026 && t <= new Date();
+      return true;
+    };
+    return state.transactions.filter(inRange);
+  }, [state.transactions, dateRange]);
 
   const metrics = useMemo(() => {
     const allOrders = [...state.buyOrders, ...state.sellOrders];
@@ -44,18 +63,18 @@ export function FinancialReporting({
       .filter((o) => o.status !== "Cancelled" && o.status !== "Completed" && o.status !== "Order Completed")
       .reduce((s, o) => s + (parseFloat(String(o.aiEstimatedAmount ?? 0).replace(/[^0-9.-]/g, "")) || 0), 0);
     const lcCount = allOrders.filter((o) => o.lcNumber).length || 15;
-    const pendingRelease = state.transactions
+    const pendingRelease = filteredTransactions
       .filter((t) => t.status === "Pending")
       .reduce((s, t) => s + (parseFloat(t.finalAmount.replace(/[^0-9.-]/g, "")) || 0), 0);
-    const settledYtd = state.transactions
+    const settledYtd = filteredTransactions
       .filter((t) => t.status === "Completed")
       .reduce((s, t) => s + (parseFloat(t.finalAmount.replace(/[^0-9.-]/g, "")) || 0), 0);
-    const platformRevenue = state.transactions
+    const platformRevenue = filteredTransactions
       .filter((t) => t.status === "Completed")
       .reduce((s, t) => s + (parseFloat(t.serviceFee?.replace(/[^0-9.-]/g, "") || "0") || 0), 0);
     const incotermsFob = 62;
     const complianceOk = 98;
-    const failedCount = state.transactions.filter((t) => t.status === "Failed").length;
+    const failedCount = filteredTransactions.filter((t) => t.status === "Failed").length;
 
     return {
       failedCount,
@@ -67,7 +86,7 @@ export function FinancialReporting({
       incotermsFob: incotermsFob + "%",
       complianceOk: complianceOk + "%",
     };
-  }, [state.buyOrders, state.sellOrders, state.transactions]);
+  }, [state.buyOrders, state.sellOrders, filteredTransactions]);
 
   return (
     <div className="p-6 space-y-8">
@@ -80,7 +99,7 @@ export function FinancialReporting({
           </p>
         </div>
         <div className="flex gap-3 flex-wrap">
-          <Select defaultValue="feb2026">
+          <Select value={dateRange} onValueChange={setDateRange}>
             <SelectTrigger className="w-[160px]">
               <Calendar className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Date range" />

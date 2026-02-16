@@ -33,6 +33,9 @@ import { LogisticsManagement } from "./components/admin/LogisticsManagement";
 import { SellSubmissionDetailPage } from "./components/admin/SellSubmissionDetailPage";
 import { InsuranceManagement } from "./components/admin/InsuranceManagement";
 import { AdminSettings } from "./components/admin/AdminSettings";
+import { AuditLogPage } from "./components/admin/AuditLogPage";
+import { ProfilePage } from "./components/admin/ProfilePage";
+import { HelpPage } from "./components/admin/HelpPage";
 import { Notifications } from "./components/dashboard/Notifications";
 import { GlobalSearchResults } from "./components/dashboard/GlobalSearchResults";
 import { Toaster } from "./components/ui/sonner";
@@ -445,6 +448,21 @@ function AppContent() {
         return <InsuranceManagement />;
       case "settings":
         return <AdminSettings />;
+      case "audit-log":
+        return (
+          <AuditLogPage
+            onNavigateToOrder={(orderId, type) => {
+              setOrderDetail({ orderId, type });
+              setCurrentView(type === "sell" ? "sell-order-detail" : "buy-order-detail");
+            }}
+            onNavigateToTransaction={() => setCurrentView("finance-transactions")}
+            onNavigateToUser={(userId) => navigateTo("users", { selectedUserId: userId })}
+          />
+        );
+      case "profile":
+        return <ProfilePage onBack={() => setCurrentView("dashboard")} />;
+      case "help":
+        return <HelpPage />;
       case "notifications":
         return <Notifications />;
       case "search":

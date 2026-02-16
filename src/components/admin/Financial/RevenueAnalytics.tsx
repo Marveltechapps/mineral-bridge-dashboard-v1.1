@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useDashboardStore, getRegistryUserName } from "../../../store/dashboardStore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../ui/card";
 import { Button } from "../../ui/button";
@@ -13,6 +13,8 @@ import {
 } from "../../ui/table";
 import { Badge } from "../../ui/badge";
 import { toast } from "sonner";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export function RevenueAnalytics({
   onOpenOrderDetail,
@@ -62,6 +64,43 @@ export function RevenueAnalytics({
       .slice(0, 5)
       .map(([mineral, amount]) => ({ mineral, value: amount >= 1e3 ? `$${(amount / 1e3).toFixed(0)}K` : `$${amount.toFixed(0)}` }));
   }, [state.transactions]);
+
+  const downloadPdfSummary = useCallback(() => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("Revenue Summary", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+    doc.setFontSize(12);
+    doc.text(`Gross Revenue: ${grossRevenue}`, 14, 40);
+    doc.text(`Platform Fees: ${platformFees}`, 14, 48);
+    doc.text(`Net Margin: ${netMargin}`, 14, 56);
+    doc.text("Revenue by source", 14, 68);
+    autoTable(doc, {
+      startY: 72,
+      head: [["Source", "Value"]],
+      body: revenueBySource.map((r) => [r.label, r.value]),
+    });
+    const tableEnd = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY ?? 72;
+    doc.text("Top minerals by revenue", 14, tableEnd + 12);
+    autoTable(doc, {
+      startY: tableEnd + 16,
+      head: [["Mineral", "Revenue"]],
+      body: topMinerals.map((m) => [m.mineral, m.value]),
+    });
+    const tableEnd2 = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY ?? tableEnd + 16;
+    const completed = state.transactions.filter((t) => t.status === "Completed").slice(0, 15);
+    if (completed.length > 0 && tableEnd2 < 250) {
+      doc.text("Recent completed transactions", 14, tableEnd2 + 12);
+      autoTable(doc, {
+        startY: tableEnd2 + 16,
+        head: [["TX ID", "Order", "Amount", "Status"]],
+        body: completed.map((t) => [t.id, t.orderId, t.finalAmount, t.status]),
+      });
+    }
+    doc.save(`revenue-summary-${new Date().toISOString().slice(0, 10)}.pdf`);
+    toast.success("PDF Summary downloaded", { description: "Revenue report saved." });
+  }, [grossRevenue, platformFees, netMargin, revenueBySource, topMinerals, state.transactions]);
 
   return (
     <div className="space-y-6">
@@ -158,7 +197,7 @@ export function RevenueAnalytics({
             <Button
               variant="outline"
               className="h-14"
-              onClick={() => toast.info("PDF Summary", { description: "PDF report is being generated. Download will start shortly." })}
+              onClick={downloadPdfSummary}
             >
               PDF Summary
             </Button>

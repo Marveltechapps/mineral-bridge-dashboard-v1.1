@@ -279,6 +279,17 @@ export function EnquirySupportManagement({ initialUserId }: EnquirySupportManage
                         replies: [...(selectedEnquiry.replies ?? []), newReply],
                       };
                       dispatch({ type: "UPDATE_ENQUIRY", payload: updated });
+                      dispatch({
+                        type: "ADD_APP_ACTIVITY",
+                        payload: {
+                          id: `act-${Date.now()}`,
+                          userId: "1",
+                          type: "enquiry_replied",
+                          description: `Reply sent for enquiry: ${selectedEnquiry.subject}`,
+                          at: new Date().toISOString(),
+                          metadata: { enquiryId: selectedEnquiry.id, ...(selectedEnquiry.userId && { userId: selectedEnquiry.userId }) },
+                        },
+                      });
                       setReplyText("");
                       toast.success("Reply sent", { description: "Your reply has been added." });
                     }}

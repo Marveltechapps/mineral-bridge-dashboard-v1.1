@@ -65,6 +65,8 @@ interface RoleContextValue {
   removeAdmin: (id: string) => void;
   /** Validate credentials; returns AdminUser (no password) if valid. */
   getAdminByCredentials: (email: string, password: string) => AdminUser | null;
+  /** Update the currently logged-in admin (name, email, password). Persists to registry and updates session. */
+  updateCurrentUser: (updates: { name?: string; email?: string; password?: string }) => void;
 }
 
 const RoleContext = createContext<RoleContextValue | null>(null);
@@ -102,6 +104,28 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     return { id: found.id, email: found.email, name: found.name, role: found.role };
   };
 
+  const updateCurrentUser = (updates: { name?: string; email?: string; password?: string }) => {
+    if (!user) return;
+    setAdminRegistry((prev) =>
+      prev.map((a) =>
+        a.id === user.id
+          ? {
+              ...a,
+              ...(updates.name !== undefined && { name: updates.name }),
+              ...(updates.email !== undefined && { email: updates.email }),
+              ...(updates.password !== undefined && { password: updates.password }),
+            }
+          : a
+      )
+    );
+    setUser({
+      id: user.id,
+      name: updates.name ?? user.name,
+      email: updates.email ?? user.email,
+      role: user.role,
+    });
+  };
+
   const value = useMemo<RoleContextValue>(() => {
     const permissions = role ? getPermissionsForRole(role) : [];
     return {
@@ -130,6 +154,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       updateAdmin,
       removeAdmin,
       getAdminByCredentials,
+      updateCurrentUser,
     };
   }, [user, role, adminRegistry]);
 

@@ -39,6 +39,17 @@ export function ReleasePaymentPage({ transactionId, onNavigateToStep, onBackToTr
         type: "UPDATE_TRANSACTION",
         payload: { ...tx, status: "Completed" as const },
       });
+      dispatch({
+        type: "ADD_APP_ACTIVITY",
+        payload: {
+          id: `act-${Date.now()}`,
+          userId: "1",
+          type: "payment_released",
+          description: `Payment released for transaction ${transactionId}`,
+          at: new Date().toISOString(),
+          metadata: { transactionId, orderId: tx.orderId },
+        },
+      });
       toast.success("Payment released; transaction complete");
     } catch {
       toast.error("Failed");

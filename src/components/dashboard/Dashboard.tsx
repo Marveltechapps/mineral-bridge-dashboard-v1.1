@@ -49,6 +49,8 @@ const QUICK_ACCESS: { view: string; label: string; icon: React.ComponentType<{ c
   { view: "analytics", label: "Analytics & Insights", icon: BarChart3 },
   { view: "insurance", label: "Insurance", icon: ShieldCheck },
   { view: "settings", label: "Settings", icon: Settings },
+  { view: "audit-log", label: "Audit & Activity Log", icon: FileText },
+  { view: "help", label: "Help & Documentation", icon: HelpCircle },
 ];
 
 export function Dashboard({ onViewChange, onOpenOrder, onOpenTransaction, onOpenUser }: DashboardProps) {
@@ -347,7 +349,10 @@ export function Dashboard({ onViewChange, onOpenOrder, onOpenTransaction, onOpen
               ))}
             </ul>
           )}
-          <Button variant="outline" size="sm" className="mt-4" onClick={() => onViewChange?.("users")}>View User Management</Button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => onViewChange?.("audit-log")}>View full audit log</Button>
+            <Button variant="outline" size="sm" onClick={() => onViewChange?.("users")}>View User Management</Button>
+          </div>
         </CardContent>
       </Card>
 
