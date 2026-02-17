@@ -434,7 +434,17 @@ function AppContent() {
       case "disputes":
         return <DisputesResolution initialOrderId={viewParams.selectedOrderId} onOpenOrderDetail={openOrderDetail} />;
       case "partners":
-        return <PartnerManagement onNavigateToCompliance={() => navigateTo("compliance", {})} />;
+        return (
+          <PartnerManagement
+            onNavigateToCompliance={() => navigateTo("compliance", {})}
+            onNavigateToLogistics={(orderId) => navigateTo("logistics", orderId ? { selectedOrderId: orderId } : {})}
+            onNavigateToTransactions={(transactionId) => navigateTo("orders", transactionId ? { selectedTransactionId: transactionId } : {})}
+            onOpenOrderDetail={(orderId, type) => {
+              setOrderDetail({ orderId, type });
+              setCurrentView(type === "sell" ? "sell-order-detail" : "buy-order-detail");
+            }}
+          />
+        );
       case "logistics":
         return (
           <LogisticsManagement

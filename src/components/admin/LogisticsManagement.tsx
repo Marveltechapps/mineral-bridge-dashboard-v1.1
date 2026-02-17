@@ -34,7 +34,14 @@ import {
   Mail,
   Box,
   CreditCard,
-  Link2
+  Link2,
+  Share2,
+  Upload,
+  FileCheck,
+  User,
+  ArrowLeft,
+  X,
+  FlaskConical
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "../ui/card";
 import { Button } from "../ui/button";
@@ -78,7 +85,7 @@ import { Checkbox } from "../ui/checkbox";
 import { toast } from "sonner@2.0.3";
 import { motion } from "motion/react";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
-import { useAllOrders, useDashboardStore, getRegistryUserName, getLogisticsDetailsForOrder } from "../../store/dashboardStore";
+import { useAllOrders, useDashboardStore, getRegistryUserName, getLogisticsDetailsForOrder, getPartnerThirdPartyForOrder, getUserDetails, getKycVerificationResult } from "../../store/dashboardStore";
 import type { LogisticsDetails } from "../../store/dashboardStore";
 import { QRCodeSVG } from "qrcode.react";
 import { 
@@ -279,6 +286,10 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
   const [selectedShipment, setSelectedShipment] = useState<any>(null);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
   const [regionFilter, setRegionFilter] = useState("all");
+  /** Selected order ID for logistics shipment detail view (same pattern as Testing & Certification 3rd party detail). */
+  const [selectedLogisticsShipmentForDetail, setSelectedLogisticsShipmentForDetail] = useState<string | null>(null);
+  /** Edit form for 3rd party logistics inside the shipment detail page (carrier, tracking, amount, QR). */
+  const [detailLogisticsEditForm, setDetailLogisticsEditForm] = useState<Omit<LogisticsDetails, "orderId" | "updatedAt"> | null>(null);
 
   const { state, dispatch } = useDashboardStore();
   const allOrders = useAllOrders();
@@ -296,6 +307,37 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
     shippingAmount: "",
     shippingCurrency: "USD",
   });
+  const [proofDocNames, setProofDocNames] = useState<string[]>([]);
+  const [paymentLink, setPaymentLink] = useState("");
+  const [logisticsLink, setLogisticsLink] = useState("");
+  const proofFileInputRef = React.useRef<HTMLInputElement>(null);
+  const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files?.length) {
+      const names = Array.from(files).map((f) => f.name);
+      setProofDocNames((prev) => [...prev, ...names]);
+      toast.success("Document uploaded for proof", { description: names.join(", ") });
+    }
+    e.target.value = "";
+  };
+  const handleSendPaymentLink = () => {
+    const link = paymentLink.trim();
+    if (!link) {
+      toast.error("Enter a payment link", { description: "Paste the payment URL to send to the partner." });
+      return;
+    }
+    toast.success("Payment link sent", { description: "Link sent to partner for payment." });
+    setPaymentLink("");
+  };
+  const handleSendLogisticsLink = () => {
+    const link = logisticsLink.trim();
+    if (!link) {
+      toast.error("Enter a logistics link", { description: "Paste the tracking or logistics URL to send to the partner." });
+      return;
+    }
+    toast.success("Logistics link sent", { description: "Link sent to partner for shipment tracking." });
+    setLogisticsLink("");
+  };
   const shipmentsFromStore = useMemo(
     () =>
       allOrders.map((o) => ({
@@ -330,6 +372,25 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
       };
     });
   }, [state.logisticsDetails, allOrders, state.registryUsers]);
+
+  /** 3rd party overview stats for summary cards on Logistics 3rd Party Details tab (same as Testing & Certification). */
+  const logisticsThirdPartyOverviewStats = useMemo(() => {
+    const entries = shipmentDetailsFromDb;
+    const inTransit = entries.filter((e) => e.status === "In transit").length;
+    const delivered = entries.filter((e) => e.status === "Delivered" || e.status === "Completed").length;
+    const testing = entries.filter((e) => e.status === "Sample received at lab").length;
+    const pending = entries.filter((e) => {
+      const s = e.status;
+      return !s || s === "—" || s === "Pending" || (s !== "In transit" && s !== "Delivered" && s !== "Completed" && s !== "Sample received at lab");
+    }).length;
+    return {
+      total: entries.length,
+      inTransit,
+      delivered,
+      testing,
+      pending,
+    };
+  }, [shipmentDetailsFromDb]);
 
   const handleTrackLive = (shipment: any) => {
     setSelectedShipment(shipment);
@@ -414,10 +475,42 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
     setActiveTab("third-party");
   }, [initialOrderId]);
 
+  /** Sync edit form when opening/closing a shipment detail. */
+  useEffect(() => {
+    if (selectedLogisticsShipmentForDetail) {
+      const d = state.logisticsDetails[selectedLogisticsShipmentForDetail];
+      setDetailLogisticsEditForm(d ? {
+        carrierName: d.carrierName,
+        trackingNumber: d.trackingNumber,
+        trackingUrl: d.trackingUrl,
+        qrPayload: d.qrPayload,
+        contactPhone: d.contactPhone,
+        contactEmail: d.contactEmail,
+        notes: d.notes,
+        shippingAmount: d.shippingAmount ?? "",
+        shippingCurrency: d.shippingCurrency ?? "USD",
+      } : {
+        carrierName: "",
+        trackingNumber: "",
+        trackingUrl: "",
+        qrPayload: "",
+        contactPhone: "",
+        contactEmail: "",
+        notes: "",
+        shippingAmount: "",
+        shippingCurrency: "USD",
+      });
+    } else {
+      setDetailLogisticsEditForm(null);
+    }
+  }, [selectedLogisticsShipmentForDetail, state.logisticsDetails]);
+
   const orderForLink = initialOrderId ? allOrders.find((o) => o.id === initialOrderId) : null;
 
   return (
     <div className="p-6 space-y-6">
+      {!selectedLogisticsShipmentForDetail && (
+      <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Logistics Partners - Active Shipments</h1>
@@ -1075,252 +1168,733 @@ export function LogisticsManagement({ initialOrderId, onOpenOrderDetail, onNavig
         </TabsContent>
 
         <TabsContent value="third-party" className="mt-4">
-          <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle>3rd Party Logistics Details by Order / Shipment ID</CardTitle>
-              <CardDescription>Enter carrier and tracking details for a specific order. The tracking link and QR will appear in the end customer app.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Order / Shipment ID</label>
-                  <Select value={thirdPartyTabOrderId} onValueChange={loadExistingForOrder}>
-                    <SelectTrigger><SelectValue placeholder="Select order ID" /></SelectTrigger>
-                    <SelectContent>
-                      {allOrders.map((o) => (
-                        <SelectItem key={o.id} value={o.id}>{o.id} — {o.mineral}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Carrier Name</label>
-                  <Input placeholder="e.g. DHL Global" value={thirdPartyForm.carrierName} onChange={(e) => setThirdPartyForm((f) => ({ ...f, carrierName: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tracking Number</label>
-                  <Input placeholder="e.g. DHL1234567890" value={thirdPartyForm.trackingNumber} onChange={(e) => setThirdPartyForm((f) => ({ ...f, trackingNumber: e.target.value }))} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tracking URL (shown as link in app)</label>
-                <Input placeholder="https://track.carrier.com/..." value={thirdPartyForm.trackingUrl} onChange={(e) => setThirdPartyForm((f) => ({ ...f, trackingUrl: e.target.value }))} />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Contact Phone</label>
-                  <Input placeholder="+1 234 567 8900" value={thirdPartyForm.contactPhone} onChange={(e) => setThirdPartyForm((f) => ({ ...f, contactPhone: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Contact Email</label>
-                  <Input type="email" placeholder="support@carrier.com" value={thirdPartyForm.contactEmail} onChange={(e) => setThirdPartyForm((f) => ({ ...f, contactEmail: e.target.value }))} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Notes</label>
-                <Input placeholder="Optional notes" value={thirdPartyForm.notes} onChange={(e) => setThirdPartyForm((f) => ({ ...f, notes: e.target.value }))} />
-              </div>
-
-              {/* Amount details for Financial & Support – shipping cost / logistics amount */}
-              <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-emerald-600" />
-                    Shipping / logistics amount
-                  </label>
-                  <Input
-                    placeholder="e.g. 1250.00"
-                    value={thirdPartyForm.shippingAmount ?? ""}
-                    onChange={(e) => setThirdPartyForm((f) => ({ ...f, shippingAmount: e.target.value }))}
-                  />
-                  <p className="text-xs text-muted-foreground">Used in Financial & Support for reconciliation and reporting.</p>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Currency</label>
-                  <Select
-                    value={thirdPartyForm.shippingCurrency ?? "USD"}
-                    onValueChange={(v) => setThirdPartyForm((f) => ({ ...f, shippingCurrency: v }))}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="EUR">EUR</SelectItem>
-                      <SelectItem value="GBP">GBP</SelectItem>
-                      <SelectItem value="GHS">GHS</SelectItem>
-                      <SelectItem value="CHF">CHF</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Transaction payment – QR code for Tracking URL (under 3rd party logistics; save after completing) */}
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          {/* 3rd Party Details overview cards — same as Testing & Certification */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                    <FileCheck className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                  </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                      <CreditCard className="h-4 w-4 text-emerald-600" />
-                      Transaction payment
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">3rd party entries</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{logisticsThirdPartyOverviewStats.total}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
+                    <Truck className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">In transit</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{logisticsThirdPartyOverviewStats.inTransit}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-sky-50 dark:bg-sky-900/30 flex items-center justify-center">
+                    <FlaskConical className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Testing</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{logisticsThirdPartyOverviewStats.testing}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Delivered</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{logisticsThirdPartyOverviewStats.delivered}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pending</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{logisticsThirdPartyOverviewStats.pending}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Documents, payments & logistics — connected to verification details */}
+          <div className="w-full min-w-full overflow-visible mb-6">
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden w-full" style={{ width: "100%" }}>
+              <CardHeader className="px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
+                    <Share2 className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-base sm:text-lg md:text-xl font-black text-slate-900 dark:text-white break-words">Documents, payments & logistics</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm font-medium text-slate-500 mt-1 leading-relaxed break-words">
+                      Upload proof documents and send payment or logistics links. Tied to 3rd party verification details (documents uploaded, verified).
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 md:p-8">
+                {(state.partnerThirdPartyDetails ?? []).length > 0 && (
+                  <div className="mb-6 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+                    <h4 className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                      <FileCheck className="w-3.5 h-3.5 text-emerald-500" />
+                      Verification details (documents uploaded & verified)
                     </h4>
-                    <p className="text-xs text-muted-foreground mt-1">QR code for the <strong>Tracking URL</strong> above. {thirdPartyForm.shippingAmount ? (
-                      <span className="text-emerald-600 font-medium">Amount: {thirdPartyForm.shippingAmount} {thirdPartyForm.shippingCurrency ?? "USD"}</span>
-                    ) : "Enter shipping amount above for Financial & Support."} Save with the button below.</p>
+                    <ul className="space-y-2 max-h-32 overflow-y-auto">
+                      {(state.partnerThirdPartyDetails ?? []).slice(0, 10).map((entry: { id: string; orderId: string; uploadedDocuments?: string[]; status?: string }) => {
+                        const docs = entry.uploadedDocuments ?? [];
+                        const verified = entry.status === "Sample received at lab" || entry.status === "Delivered";
+                        return (
+                          <li key={entry.id} className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300">
+                            <span className="font-black text-slate-900 dark:text-white">{entry.orderId}</span>
+                            {docs.length > 0 ? <span className="text-slate-600 dark:text-slate-400">— {docs.join(", ")}</span> : null}
+                            <Badge className={`border-none font-black text-[9px] uppercase ${verified ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"}`}>
+                              {verified ? "Verified" : entry.status || "Pending"}
+                            </Badge>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
-                  {onNavigateToTransactionsPage && (
-                    <Button variant="outline" size="sm" className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={onNavigateToTransactionsPage}>
-                      <Link2 className="h-4 w-4" />
-                      Open Transactions page
-                    </Button>
-                  )}
-                </div>
-                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-4">
-                  {(() => {
-                    const trackingUrl = (thirdPartyForm.trackingUrl || "").trim();
-                    const qrValue = trackingUrl || (thirdPartyTabOrderId ? `order:${thirdPartyTabOrderId}` : "Mineral Bridge");
-                    return (
-                      <div className="flex flex-wrap items-start gap-6">
-                        <div className="p-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                          <QRCodeSVG value={qrValue} size={200} className="mx-auto" />
-                          <p className="text-xs text-muted-foreground mt-2 text-center max-w-[200px]">
-                            {trackingUrl ? "Scan for tracking link" : "QR code — enter Tracking URL above to update"}
-                          </p>
-                        </div>
-                        {thirdPartyTabOrderId && onNavigateToTransaction && (() => {
-                          const tx = state.transactions.find((t) => t.orderId === thirdPartyTabOrderId);
-                          if (!tx) return null;
-                          return (
-                            <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={() => onNavigateToTransaction(tx.id)}>
-                              <Link2 className="h-4 w-4" />
-                              View this transaction
-                            </Button>
-                          );
-                        })()}
+                )}
+                <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:flex-wrap md:gap-6">
+                  <div className="flex-1 w-full min-w-[260px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-4 sm:p-5 md:p-6 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                        <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
                       </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              <Button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveLogisticsDetails}>
-                Save 3rd Party Details
-              </Button>
-              {Object.keys(state.logisticsDetails).length > 0 && (
-                <div className="pt-4 border-t">
-                  <p className="text-sm font-medium mb-2">Saved for IDs</p>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.keys(state.logisticsDetails).map((id) => (
-                      <Badge key={id} variant="secondary" className="cursor-pointer" onClick={() => loadExistingForOrder(id)}>{id}</Badge>
-                    ))}
+                      <h4 className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider break-words">Upload document for proof</h4>
+                    </div>
+                    <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed break-words">Certificates, invoices, or compliance proof. PDF, DOC, images.</p>
+                    <input ref={proofFileInputRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" multiple className="hidden" onChange={handleProofUpload} />
+                    <Button variant="outline" className="w-full rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 h-20 sm:h-24 flex flex-col gap-2 hover:border-emerald-300 dark:hover:border-emerald-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 bg-white dark:bg-slate-800/50" onClick={() => proofFileInputRef.current?.click()}>
+                      <Upload className="w-5 h-5 sm:w-6 sm:h-6 text-slate-400 shrink-0" />
+                      <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">Choose file(s)</span>
+                    </Button>
+                    {proofDocNames.length > 0 && (
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-3 sm:p-4 space-y-2 min-w-0">
+                        <p className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Uploaded ({proofDocNames.length})</p>
+                        <ul className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 space-y-1.5 max-h-20 overflow-y-auto">
+                          {proofDocNames.slice(-5).map((name, i) => (
+                            <li key={i} className="flex items-center gap-2 break-all" title={name}>
+                              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-slate-400" />
+                              {name}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 w-full min-w-[260px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-4 sm:p-5 md:p-6 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                        <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                      </div>
+                      <h4 className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider break-words">Send payment link</h4>
+                    </div>
+                    <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed break-words">Share payment or invoice URL with the partner.</p>
+                    <Input placeholder="https://..." value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs sm:text-sm font-medium h-10 sm:h-11 w-full min-w-0" />
+                    <Button className="w-full bg-slate-900 text-white hover:bg-slate-800 rounded-xl gap-2 h-10 sm:h-11 font-semibold text-xs sm:text-sm" onClick={handleSendPaymentLink}>
+                      <Link2 className="w-4 h-4 shrink-0" />
+                      Send link to partner
+                    </Button>
+                  </div>
+                  <div className="flex-1 w-full min-w-[260px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-4 sm:p-5 md:p-6 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                        <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                      </div>
+                      <h4 className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider break-words">Send logistics link</h4>
+                    </div>
+                    <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed break-words">Share tracking or shipment URL with the partner.</p>
+                    <Input placeholder="https://..." value={logisticsLink} onChange={(e) => setLogisticsLink(e.target.value)} className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs sm:text-sm font-medium h-10 sm:h-11 w-full min-w-0" />
+                    <Button className="w-full bg-slate-900 text-white hover:bg-slate-800 rounded-xl gap-2 h-10 sm:h-11 font-semibold text-xs sm:text-sm" onClick={handleSendLogisticsLink}>
+                      <Link2 className="w-4 h-4 shrink-0" />
+                      Send link to partner
+                    </Button>
                   </div>
                 </div>
-              )}
+              </CardContent>
+            </Card>
+          </div>
 
-              {/* Shipment details table */}
-              <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Shipment details</h4>
-                  {onNavigateToTransactionsPage && (
-                    <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 gap-1" onClick={onNavigateToTransactionsPage}>
-                      <Link2 className="h-4 w-4" />
-                      All transactions
-                    </Button>
-                  )}
-                </div>
-                <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Shipment details</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">User</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Route material</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Carrier</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Status</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Risk</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400 text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {shipmentDetailsFromDb.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-sm text-muted-foreground text-center py-8">
-                            No shipment details saved yet. Enter order/shipment ID above, fill carrier and tracking details, and click Save 3rd Party Details. Saved records will appear here.
+          {/* Shipment details table — click row or View Details to open detail page */}
+          <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Shipment details</h4>
+              {onNavigateToTransactionsPage && (
+                <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 gap-1" onClick={onNavigateToTransactionsPage}>
+                  <Link2 className="h-4 w-4" />
+                  All transactions
+                </Button>
+              )}
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                    <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Shipment details</TableHead>
+                    <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">User</TableHead>
+                    <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Route material</TableHead>
+                    <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Carrier</TableHead>
+                    <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Status</TableHead>
+                    <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400">Risk</TableHead>
+                    <TableHead className="text-xs font-medium text-slate-600 dark:text-slate-400 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {shipmentDetailsFromDb.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-sm text-muted-foreground text-center py-8">
+                        No shipment details saved yet. Open a shipment from the Logistics tab or add 3rd party details in a shipment detail page. Saved records will appear here.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    shipmentDetailsFromDb.map((row) => {
+                      const riskColor = row.risk === "Medium" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                      return (
+                        <TableRow
+                          key={row.orderId}
+                          className="border-slate-100 dark:border-slate-800 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                          onClick={() => setSelectedLogisticsShipmentForDetail(row.orderId)}
+                        >
+                          <TableCell className="text-sm font-medium text-slate-900 dark:text-white">
+                            <span className="font-mono">{row.orderId}</span>
+                            {row.updatedAt && (
+                              <span className="block text-xs font-normal text-muted-foreground mt-0.5">Saved {row.updatedAt}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-700 dark:text-slate-300">{row.userName}</TableCell>
+                          <TableCell className="text-sm text-slate-700 dark:text-slate-300">{row.routeMaterial}</TableCell>
+                          <TableCell className="text-sm text-slate-700 dark:text-slate-300">{row.carrier}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-xs font-medium">{row.status}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {row.risk !== "—" ? (
+                              <Badge variant="secondary" className={`text-xs font-medium ${riskColor}`}>{row.risk}</Badge>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs font-semibold rounded-xl gap-1.5"
+                                onClick={() => setSelectedLogisticsShipmentForDetail(row.orderId)}
+                              >
+                                View Details
+                              </Button>
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="text-emerald-600 hover:text-emerald-700 font-medium h-auto p-0"
+                                onClick={() => {
+                                  loadExistingForOrder(row.orderId);
+                                  toast.success("Send Tracking URL", { description: `Order ${row.orderId} — tracking form ready.` });
+                                }}
+                              >
+                                Send Tracking URL
+                              </Button>
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="text-[#A855F7] hover:text-purple-600 font-medium h-auto p-0 gap-1"
+                                onClick={() => setSendTxOrderId(row.orderId)}
+                              >
+                                <Mail className="h-3.5 w-3.5" />
+                                Send transaction details
+                              </Button>
+                              {onNavigateToTransaction && (() => {
+                                const tx = state.transactions.find((t) => t.orderId === row.orderId);
+                                if (!tx) return null;
+                                return (
+                                  <Button
+                                    variant="link"
+                                    size="sm"
+                                    className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white font-medium h-auto p-0"
+                                    onClick={() => onNavigateToTransaction(tx.id)}
+                                  >
+                                    View transaction
+                                  </Button>
+                                );
+                              })()}
+                            </div>
                           </TableCell>
                         </TableRow>
-                      ) : (
-                        shipmentDetailsFromDb.map((row) => {
-                          const riskColor = row.risk === "Medium" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                          return (
-                            <TableRow key={row.orderId} className="border-slate-100 dark:border-slate-800">
-                              <TableCell className="text-sm font-medium text-slate-900 dark:text-white">
-                                <span className="font-mono">{row.orderId}</span>
-                                {row.updatedAt && (
-                                  <span className="block text-xs font-normal text-muted-foreground mt-0.5">Saved {row.updatedAt}</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{row.userName}</TableCell>
-                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{row.routeMaterial}</TableCell>
-                              <TableCell className="text-sm text-slate-700 dark:text-slate-300">{row.carrier}</TableCell>
-                              <TableCell>
-                                <Badge variant="secondary" className="text-xs font-medium">{row.status}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                {row.risk !== "—" ? (
-                                  <Badge variant="secondary" className={`text-xs font-medium ${riskColor}`}>{row.risk}</Badge>
-                                ) : (
-                                  <span className="text-sm text-muted-foreground">—</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex flex-wrap items-center justify-end gap-2">
-                                  <Button
-                                    variant="link"
-                                    size="sm"
-                                    className="text-emerald-600 hover:text-emerald-700 font-medium h-auto p-0"
-                                    onClick={() => {
-                                      loadExistingForOrder(row.orderId);
-                                      toast.success("Send Tracking URL", { description: `Order ${row.orderId} — tracking form ready.` });
-                                    }}
-                                  >
-                                    Send Tracking URL
-                                  </Button>
-                                  <Button
-                                    variant="link"
-                                    size="sm"
-                                    className="text-[#A855F7] hover:text-purple-600 font-medium h-auto p-0 gap-1"
-                                    onClick={() => setSendTxOrderId(row.orderId)}
-                                  >
-                                    <Mail className="h-3.5 w-3.5" />
-                                    Send transaction details
-                                  </Button>
-                                  {onNavigateToTransaction && (() => {
-                                    const tx = state.transactions.find((t) => t.orderId === row.orderId);
-                                    if (!tx) return null;
-                                    return (
-                                      <Button
-                                        variant="link"
-                                        size="sm"
-                                        className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white font-medium h-auto p-0"
-                                        onClick={() => onNavigateToTransaction(tx.id)}
-                                      >
-                                        View transaction
-                                      </Button>
-                                    );
-                                  })()}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* 3rd Party Logistics Details form removed — use shipment detail page to edit per order. */}
         </TabsContent>
       </Tabs>
+      </>
+      )}
+
+      {/* Logistics shipment detail — inline (side nav visible), same pattern as Testing & Certification 3rd party detail */}
+      {selectedLogisticsShipmentForDetail && (() => {
+        const orderId = selectedLogisticsShipmentForDetail;
+        const details = state.logisticsDetails[orderId];
+        const order = allOrders.find((o) => o.id === orderId);
+        const linkedUser = order?.userId ? state.registryUsers.find((u) => u.id === order.userId) : null;
+        const activeTesting = (state.activeTestingOrders ?? []).find((a) => a.orderId === orderId);
+        const partnerThirdParty = getPartnerThirdPartyForOrder(state, orderId);
+        const transaction = state.transactions.find((t) => t.orderId === orderId);
+        const userDetailsSet = getUserDetails(state, linkedUser?.id);
+        const kycResult = linkedUser ? getKycVerificationResult(state, linkedUser.id) : undefined;
+        const entry = details ?? { orderId, carrierName: "", trackingNumber: "", trackingUrl: "", qrPayload: "", contactPhone: "", contactEmail: "", notes: "", updatedAt: "" };
+        const statusFromOrder = order?.status ?? partnerThirdParty?.status ?? "Active";
+        const shipmentStatusLabel = statusFromOrder === "Delivered" || statusFromOrder === "Completed" ? "DELIVERED" : statusFromOrder === "In transit" ? "IN TRANSIT" : statusFromOrder === "Sample received at lab" ? "TESTING" : (statusFromOrder ?? "ACTIVE").toUpperCase().replace(/ /g, "_");
+        return (
+          <div className="flex flex-col w-full rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900">
+            <header className="border-b border-slate-200 dark:border-slate-800 px-6 py-4 shrink-0 bg-white dark:bg-slate-900 flex flex-col gap-2 relative">
+              <Button variant="ghost" size="icon" className="absolute top-4 right-4 rounded-full h-9 w-9 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" onClick={() => setSelectedLogisticsShipmentForDetail(null)} aria-label="Close">
+                <X className="w-5 h-5" />
+              </Button>
+              <Button variant="ghost" size="sm" className="absolute top-4 left-6 rounded-xl gap-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold" onClick={() => setSelectedLogisticsShipmentForDetail(null)} aria-label="Back to list">
+                <ArrowLeft className="w-4 h-4 shrink-0" />
+                Back
+              </Button>
+              <div className="flex flex-col gap-2 pr-12 pt-10">
+                <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-3 flex-wrap">
+                  <span>{orderId}</span>
+                  <Badge className={`border-none font-black text-[9px] uppercase tracking-tighter ${shipmentStatusLabel === "DELIVERED" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : shipmentStatusLabel === "IN TRANSIT" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"}`}>
+                    {shipmentStatusLabel}
+                  </Badge>
+                  <span className="text-base font-bold text-slate-600 dark:text-slate-400">{entry.carrierName || partnerThirdParty?.companyName || "—"}</span>
+                  <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Tracking: {entry.trackingNumber || partnerThirdParty?.trackingNumber || "—"}</span>
+                </h2>
+              </div>
+              <div className="flex gap-2 mt-1">
+                <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setSelectedLogisticsShipmentForDetail(null)}>Close</Button>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-y-auto px-6 py-6 bg-slate-50/50 dark:bg-slate-950">
+              <div className="max-w-4xl mx-auto space-y-6">
+                {/* Card: User details */}
+                <Card className="border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 rounded-2xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 px-6 py-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <User className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base font-black text-slate-900 dark:text-white">User details</CardTitle>
+                        <CardDescription className="text-xs text-slate-500 dark:text-slate-400">Buyer/seller linked to this shipment.</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-6 py-5 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Order ID</span>{orderId}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Mineral type</span>{order?.mineral ?? activeTesting?.mineralType ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Carrier / Partner</span>{entry.carrierName ?? partnerThirdParty?.companyName ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Order creation date</span>{order?.createdAt ?? partnerThirdParty?.submittedAt ?? "—"}</div>
+                    </div>
+                    {linkedUser ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">User name</span>{linkedUser.name}</div>
+                        <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Company name</span>{order?.contactInfo?.companyName ?? linkedUser.preHomepageDetails?.company ?? "—"}</div>
+                        <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Email</span>{linkedUser.email}</div>
+                        <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Phone</span>{linkedUser.phone}</div>
+                        <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">KYC status</span>{kycResult ? (kycResult.score ? `Verified (${kycResult.score}%)` : "Verified") : linkedUser.status}</div>
+                        <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Role (Buyer / Seller)</span>{order?.type ?? linkedUser.role}</div>
+                        <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Account status</span>{linkedUser.status}</div>
+                        <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Registration date</span>{linkedUser.preHomepageDetails?.submittedAt ?? linkedUser.detailsVerifiedAt ?? "—"}</div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800">No registry user linked to order {orderId}.</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Card: Transaction details */}
+                <Card className="border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 rounded-2xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 px-6 py-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <DollarSign className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base font-black text-slate-900 dark:text-white">Transaction details</CardTitle>
+                        <CardDescription className="text-xs text-slate-500 dark:text-slate-400">Payment related to this shipment.</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-6 py-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Invoice number</span>{activeTesting?.invoice ?? transaction?.id ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Testing / shipping fee</span>{activeTesting?.testingFee ? `${activeTesting.testingFee} ${activeTesting.currency ?? ""}`.trim() : entry.shippingAmount ? `${entry.shippingAmount} ${entry.shippingCurrency ?? "USD"}`.trim() : "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Paid amount</span>{entry.shippingAmount ? `${entry.shippingAmount} ${entry.shippingCurrency ?? "USD"}`.trim() : transaction?.finalAmount ? `${transaction.finalAmount} ${transaction.currency}` : "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Balance amount</span>{activeTesting?.paymentStatus === "Partial" ? "Partial balance" : activeTesting?.paymentStatus === "Unpaid" ? (activeTesting?.testingFee ?? "—") : "0"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Currency</span>{activeTesting?.currency ?? entry.shippingCurrency ?? transaction?.currency ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Payment status</span>{activeTesting?.paymentStatus ?? (entry.shippingAmount ? "Paid" : transaction?.status ?? "—")}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Payment method</span>{transaction?.method ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Transaction ID</span>{transaction?.id ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Payment date</span>{transaction?.date ? `${transaction.date} ${transaction.time ?? ""}`.trim() : "—"}</div>
+                    </div>
+                    <Button variant="outline" size="sm" className="rounded-xl gap-1.5 mt-4">
+                      <Download className="w-3.5 h-3.5" /> Receipt download
+                    </Button>
+                    {onNavigateToTransaction && transaction && (
+                      <Button variant="ghost" size="sm" className="rounded-xl gap-1.5 mt-2 ml-2" onClick={() => { onNavigateToTransaction(transaction.id); setSelectedLogisticsShipmentForDetail(null); }}>
+                        Open in Transactions
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Card: Documents, payments & logistics (subsection) */}
+                <Card className="border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 rounded-2xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 px-6 py-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
+                        <Share2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base font-black text-slate-900 dark:text-white">Documents, payments & logistics</CardTitle>
+                        <CardDescription className="text-xs text-slate-500 dark:text-slate-400">Upload proof documents and send payment or logistics links for this shipment. Tied to verification details.</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-6 py-5 space-y-4">
+                    <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 space-y-2">
+                      <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                        <FileCheck className="w-3.5 h-3.5 text-emerald-500" />
+                        Verification (this order)
+                      </h4>
+                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {orderId} — {((partnerThirdParty?.uploadedDocuments ?? []).length > 0 ? (partnerThirdParty?.uploadedDocuments ?? []).join(", ") : "No documents yet")} · <Badge className={`border-none font-black text-[9px] uppercase ml-1 ${(partnerThirdParty?.status === "Sample received at lab" || partnerThirdParty?.status === "Delivered") ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"}`}>{partnerThirdParty?.status ?? "Pending"}</Badge>
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:flex-wrap md:gap-6">
+                      <div className="flex-1 w-full min-w-[260px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-4 sm:p-5 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                            <Upload className="w-4 h-4 text-emerald-500" />
+                          </div>
+                          <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Upload document for proof</h4>
+                        </div>
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Certificates, invoices, or compliance proof. PDF, DOC, images.</p>
+                        <input ref={proofFileInputRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" multiple className="hidden" onChange={handleProofUpload} />
+                        <Button variant="outline" className="w-full rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 h-20 flex flex-col gap-2 hover:border-emerald-300 dark:hover:border-emerald-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 bg-white dark:bg-slate-800/50" onClick={() => proofFileInputRef.current?.click()}>
+                          <Upload className="w-5 h-5 text-slate-400 shrink-0" />
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Choose file(s)</span>
+                        </Button>
+                        {proofDocNames.length > 0 && (
+                          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-3 space-y-2 min-w-0">
+                            <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Uploaded ({proofDocNames.length})</p>
+                            <ul className="text-xs font-medium text-slate-600 dark:text-slate-400 space-y-1.5 max-h-20 overflow-y-auto">
+                              {proofDocNames.slice(-5).map((name, i) => (
+                                <li key={i} className="flex items-center gap-2 break-all" title={name}>
+                                  <FileText className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
+                                  {name}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 w-full min-w-[260px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-4 sm:p-5 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                            <DollarSign className="w-4 h-4 text-emerald-500" />
+                          </div>
+                          <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Send payment link</h4>
+                        </div>
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Share payment or invoice URL with the partner.</p>
+                        <Input placeholder="https://..." value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium h-10 w-full min-w-0" />
+                        <Button className="w-full bg-slate-900 text-white hover:bg-slate-800 rounded-xl gap-2 h-10 font-semibold text-xs" onClick={handleSendPaymentLink}>
+                          <Link2 className="w-4 h-4 shrink-0" />
+                          Send link to partner
+                        </Button>
+                      </div>
+                      <div className="flex-1 w-full min-w-[260px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-4 sm:p-5 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                            <Truck className="w-4 h-4 text-emerald-500" />
+                          </div>
+                          <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Send logistics link</h4>
+                        </div>
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Share tracking or shipment URL with the partner.</p>
+                        <Input placeholder="https://..." value={logisticsLink} onChange={(e) => setLogisticsLink(e.target.value)} className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium h-10 w-full min-w-0" />
+                        <Button className="w-full bg-slate-900 text-white hover:bg-slate-800 rounded-xl gap-2 h-10 font-semibold text-xs" onClick={handleSendLogisticsLink}>
+                          <Link2 className="w-4 h-4 shrink-0" />
+                          Send link to partner
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Card: Documents uploaded */}
+                <Card className="border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 rounded-2xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 px-6 py-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <FileText className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base font-black text-slate-900 dark:text-white">Documents uploaded</CardTitle>
+                        <CardDescription className="text-xs text-slate-500 dark:text-slate-400">Documents submitted for this shipment. View, Download, Delete (Admin only), Upload new version.</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-6 py-5">
+                    {(() => {
+                      const docList = partnerThirdParty?.uploadedDocuments ?? [];
+                      const docRows = [
+                        { label: "Assay Request PDF", value: activeTesting?.assayRequest ?? docList.find((d) => /assay|request/i.test(d)) },
+                        { label: "Sample Specification", value: docList.find((d) => /sample|spec/i.test(d)) },
+                        { label: "Commercial Invoice", value: activeTesting?.invoice ?? docList.find((d) => /invoice/i.test(d)) },
+                        { label: "Shipping Documents", value: docList.find((d) => /shipping|bill|lad/i.test(d)) },
+                        { label: "Lab Report", value: activeTesting?.labReportPdf ?? docList.find((d) => /lab|report/i.test(d)) },
+                        { label: "Final Certificate", value: activeTesting?.certificatePdf ?? docList.find((d) => /certificate|cert/i.test(d)) },
+                      ];
+                      const allRows = docRows.some((r) => r.value) ? docRows.filter((r) => r.value) : docRows.map((r) => ({ label: r.label }));
+                      return (
+                        <ul className="space-y-3">
+                          {allRows.map((row, i) => (
+                            <li key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{row.label}</span>
+                                {"value" in row && row.value && <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px]">{row.value}</span>}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold rounded-lg" onClick={() => toast.info("View", { description: (row as { value?: string }).value ?? row.label })}>View</Button>
+                                <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold rounded-lg" onClick={() => toast.info("Download", { description: (row as { value?: string }).value ?? row.label })}>Download</Button>
+                                <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={() => toast.info("Delete (Admin only)", { description: row.label })}>Delete</Button>
+                                <Button variant="outline" size="sm" className="h-8 text-xs font-semibold rounded-lg">Upload new version</Button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+
+                {/* Card: Logistics */}
+                <Card className="border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 rounded-2xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 px-6 py-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <Truck className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base font-black text-slate-900 dark:text-white">Logistics</CardTitle>
+                        <CardDescription className="text-xs text-slate-500 dark:text-slate-400">Courier, tracking and shipment timeline.</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-6 py-5 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Order ID</span>{orderId}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Mineral type</span>{order?.mineral ?? activeTesting?.mineralType ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Carrier / Partner</span>{entry.carrierName ?? partnerThirdParty?.companyName ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Order creation date</span>{order?.createdAt ?? partnerThirdParty?.submittedAt ?? "—"}</div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm pt-3 border-t border-slate-100 dark:border-slate-800">
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Courier name</span>{entry.carrierName ?? activeTesting?.courierCompany ?? partnerThirdParty?.companyName ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Tracking number</span>{entry.trackingNumber || (partnerThirdParty?.trackingNumber ?? "—")}</div>
+                      <div className="sm:col-span-2"><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Tracking URL</span>{entry.trackingUrl ? <a href={entry.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 dark:text-emerald-400 hover:underline truncate block max-w-full">{entry.trackingUrl}</a> : partnerThirdParty?.trackingUrl ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Dispatch date</span>{partnerThirdParty?.submittedAt ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Expected delivery date</span>{partnerThirdParty?.expectedDeliveryDate ?? activeTesting?.expectedDeliveryDate ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Delivered date</span>{partnerThirdParty?.deliveredAt ?? activeTesting?.deliveredDate ?? "—"}</div>
+                      <div><span className="text-slate-500 dark:text-slate-400 block text-xs font-medium uppercase tracking-wider">Current location</span>{partnerThirdParty?.status === "Sample received at lab" ? "Lab" : partnerThirdParty?.status === "Delivered" ? "Delivered" : partnerThirdParty?.status === "In transit" ? "In transit" : "—"}</div>
+                    </div>
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Shipment status timeline</p>
+                      <ul className="space-y-2 text-xs">
+                        <li className="flex items-center gap-2 text-slate-700 dark:text-slate-300"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Saved — {entry.updatedAt ?? "—"}</li>
+                        <li className="flex items-center gap-2 text-slate-700 dark:text-slate-300"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Submitted — {partnerThirdParty?.submittedAt ?? "—"}</li>
+                        <li className="flex items-center gap-2 text-slate-700 dark:text-slate-300">{statusFromOrder === "Delivered" || statusFromOrder === "Completed" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> : <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />} Delivered — {partnerThirdParty?.deliveredAt ?? activeTesting?.deliveredDate ?? "—"}</li>
+                      </ul>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Card: Edit 3rd Party Logistics Details (form + QR) */}
+                <Card className="border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 rounded-2xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 px-6 py-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
+                        <Truck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base font-black text-slate-900 dark:text-white">3rd Party Logistics Details by Order / Shipment ID</CardTitle>
+                        <CardDescription className="text-xs text-slate-500 dark:text-slate-400">Enter carrier and tracking details for this order. The tracking link and QR will appear in the end customer app.</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-6 py-5 space-y-6">
+                    {(() => {
+                      const initialForm = {
+                        carrierName: entry.carrierName ?? "",
+                        trackingNumber: entry.trackingNumber ?? "",
+                        trackingUrl: entry.trackingUrl ?? "",
+                        qrPayload: entry.qrPayload ?? "",
+                        contactPhone: entry.contactPhone ?? "",
+                        contactEmail: entry.contactEmail ?? "",
+                        notes: entry.notes ?? "",
+                        shippingAmount: entry.shippingAmount ?? "",
+                        shippingCurrency: (entry.shippingCurrency ?? "USD") as string,
+                      };
+                      const form = detailLogisticsEditForm ?? initialForm;
+                      const setForm = (next: Partial<typeof form>) => setDetailLogisticsEditForm((prev) => ({ ...(prev ?? initialForm), ...next }));
+                      const handleSaveDetailLogistics = () => {
+                        const payload: LogisticsDetails = {
+                          orderId,
+                          ...form,
+                          qrPayload: form.qrPayload || form.trackingUrl || "",
+                          updatedAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+                        };
+                        dispatch({ type: "SET_LOGISTICS_DETAILS", payload });
+                        toast.success("3rd party details saved", { description: `Order ${orderId}. Link/QR will appear in customer app.` });
+                      };
+                      return (
+                        <>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Order / Shipment ID</label>
+                            <p className="text-sm font-mono font-bold text-slate-900 dark:text-white">{orderId}</p>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Carrier Name</label>
+                              <Input placeholder="e.g. DHL Global" value={form.carrierName} onChange={(e) => setForm({ carrierName: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-700" />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Tracking Number</label>
+                              <Input placeholder="e.g. DHL1234567890" value={form.trackingNumber} onChange={(e) => setForm({ trackingNumber: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-700" />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Tracking URL (shown as link in app)</label>
+                            <Input placeholder="https://track.carrier.com/..." value={form.trackingUrl} onChange={(e) => setForm({ trackingUrl: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-700" />
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Contact Phone</label>
+                              <Input placeholder="+1 234 567 8900" value={form.contactPhone} onChange={(e) => setForm({ contactPhone: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-700" />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Contact Email</label>
+                              <Input type="email" placeholder="support@carrier.com" value={form.contactEmail} onChange={(e) => setForm({ contactEmail: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-700" />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Notes</label>
+                            <Input placeholder="Optional notes" value={form.notes} onChange={(e) => setForm({ notes: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-700" />
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                <DollarSign className="h-4 w-4 text-emerald-600" />
+                                Shipping / logistics amount
+                              </label>
+                              <Input
+                                placeholder="e.g. 1250.00"
+                                value={form.shippingAmount}
+                                onChange={(e) => setForm({ shippingAmount: e.target.value })}
+                                className="rounded-xl border-slate-200 dark:border-slate-700"
+                              />
+                              <p className="text-xs text-muted-foreground">Used in Financial & Support for reconciliation and reporting.</p>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Currency</label>
+                              <Select
+                                value={form.shippingCurrency}
+                                onValueChange={(v) => setForm({ shippingCurrency: v })}
+                              >
+                                <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="USD">USD</SelectItem>
+                                  <SelectItem value="EUR">EUR</SelectItem>
+                                  <SelectItem value="GBP">GBP</SelectItem>
+                                  <SelectItem value="GHS">GHS</SelectItem>
+                                  <SelectItem value="CHF">CHF</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+                            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                              <div>
+                                <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                  <CreditCard className="h-4 w-4 text-emerald-600" />
+                                  Transaction payment
+                                </h4>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  QR code for the <strong>Tracking URL</strong> above. {form.shippingAmount ? (
+                                    <span className="text-emerald-600 font-medium">Amount: {form.shippingAmount} {form.shippingCurrency}</span>
+                                  ) : "Enter shipping amount above for Financial & Support."} Save with the button below.</p>
+                              </div>
+                              {onNavigateToTransactionsPage && (
+                                <Button variant="outline" size="sm" className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-xl" onClick={onNavigateToTransactionsPage}>
+                                  <Link2 className="h-4 w-4" />
+                                  Open Transactions page
+                                </Button>
+                              )}
+                            </div>
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-4">
+                              <div className="flex flex-wrap items-start gap-6">
+                                <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                  <QRCodeSVG value={(form.trackingUrl || "").trim() || `order:${orderId}`} size={200} className="mx-auto" />
+                                  <p className="text-xs text-muted-foreground mt-2 text-center max-w-[200px]">
+                                    {(form.trackingUrl || "").trim() ? "Scan for tracking link" : "QR code — enter Tracking URL above to update"}
+                                  </p>
+                                </div>
+                                {transaction && onNavigateToTransaction && (
+                                  <Button variant="outline" size="sm" className="gap-2 shrink-0 rounded-xl" onClick={() => { onNavigateToTransaction(transaction.id); setSelectedLogisticsShipmentForDetail(null); }}>
+                                    <Link2 className="h-4 w-4" />
+                                    View this transaction
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <Button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 rounded-xl font-semibold" onClick={handleSaveDetailLogistics}>
+                            Save 3rd Party Details
+                          </Button>
+                        </>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Send transaction details modal */}
       <Dialog open={!!sendTxOrderId} onOpenChange={(open) => { if (!open) { setSendTxOrderId(null); setSendTxEmail(""); } }}>

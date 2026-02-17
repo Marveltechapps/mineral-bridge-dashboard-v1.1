@@ -84,7 +84,7 @@ export function BuyFlow6({
 
   return (
     <div className="space-y-2 text-sm">
-      <div className="text-xs text-muted-foreground mb-1">Complete Step {currentStep}/3</div>
+      <div className="text-xs text-slate-600 dark:text-slate-300 mb-1">Complete Step {currentStep}/3</div>
       {currentStep === 1 && (
         <>
           <Button
@@ -92,7 +92,7 @@ export function BuyFlow6({
             className="w-full bg-[#A855F7] hover:bg-purple-600"
             disabled={loading}
           >
-            {loading ? "📱 Generating QR..." : "📱 1. Send QR Notification"}
+            {loading ? "Generating QR..." : "1. Send QR Notification"}
           </Button>
           <Dialog open={qrOpen} onOpenChange={setQrOpen}>
             <DialogContent className="sm:max-w-md">
@@ -125,7 +125,7 @@ export function BuyFlow6({
               Calling {userName}...
             </>
           ) : (
-            `📞 Call ${userName}${order.contactInfo?.phone ? ` (${order.contactInfo.phone})` : ""}`
+            `Call ${userName}${order.contactInfo?.phone ? ` (${order.contactInfo.phone})` : ""}`
           )}
         </Button>
       )}

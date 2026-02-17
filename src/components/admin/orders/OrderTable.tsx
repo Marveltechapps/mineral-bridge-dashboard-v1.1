@@ -121,7 +121,7 @@ export function OrderTable({
                   <TableRow key={order.id}>
                     {use6StepFlow && (
                       <TableCell>
-                        <Badge variant={globalStep <= 3 ? "default" : "secondary"} className={globalStep <= 3 ? "bg-[#A855F7]" : ""}>
+                        <Badge variant={globalStep <= 3 ? "default" : "secondary"} className={`text-sm font-semibold px-2.5 py-1 ${globalStep <= 3 ? "bg-[#A855F7] text-white" : "border border-slate-300 dark:border-slate-600 bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200"}`}>
                           Step {globalStep}/6
                         </Badge>
                       </TableCell>
@@ -179,7 +179,7 @@ export function OrderTable({
                     <TableCell className="text-right">
                       <div className="flex gap-2 flex-wrap justify-end items-start">
                         {use6StepFlow ? (
-                          <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 min-w-[180px]">
+                          <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 min-w-[180px] text-slate-900 dark:text-slate-100">
                             {order.type === "Buy" ? (
                               <BuyFlow6
                                 order={order}

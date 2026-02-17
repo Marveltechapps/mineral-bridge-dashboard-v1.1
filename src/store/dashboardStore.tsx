@@ -80,22 +80,73 @@ export type PartnerThirdPartyStatus = "Pending" | "In transit" | "Delivered" | "
 export interface PartnerThirdPartyEntry {
   id: string;
   orderId: string;
-  carrierName: string;
+  /** 3rd party company name (testing lab / certification body). */
+  companyName?: string;
   trackingNumber: string;
   trackingUrl: string;
   /** When the user submitted (e.g. from app). */
   submittedAt?: string;
   contactPhone?: string;
   contactEmail?: string;
-  notes?: string;
+  /** Company details (address, registration, etc.). */
+  companyDetails?: string;
+  /** Document names or URLs uploaded by the user (from user side). */
+  uploadedDocuments?: string[];
   status?: PartnerThirdPartyStatus;
   expectedDeliveryDate?: string;
   /** Actual delivered time (when status is Delivered or Sample received at lab). */
   deliveredAt?: string;
   /** Testing partner (e.g. SGS, Other). */
   testingPartner?: string;
+  /** Paid amount (e.g. testing/shipping cost). */
   shippingAmount?: string;
   shippingCurrency?: string;
+}
+
+/** Testing status for active testing orders. */
+export type TestingOrderTestingStatus = "Pending" | "In Progress" | "Completed" | "Failed" | "Re-test Required";
+/** Certification status for active testing orders. */
+export type TestingOrderCertificationStatus = "Not Issued" | "Issued" | "Rejected";
+/** Payment status for testing fee. */
+export type TestingOrderPaymentStatus = "Paid" | "Unpaid" | "Partial";
+
+/** Active testing order (Testing & Certification screen). */
+export interface ActiveTestingOrder {
+  id: string;
+  /** Basic */
+  orderId: string;
+  buyerSellerName: string;
+  mineralType: string;
+  quantity: string;
+  testingPartner: string;
+  /** Logistics */
+  trackingNumber: string;
+  courierCompany: string;
+  shipmentStatus: string;
+  expectedDeliveryDate: string;
+  deliveredDate: string;
+  /** Testing */
+  sampleReceivedDate: string;
+  testingStartDate: string;
+  testingStatus: TestingOrderTestingStatus;
+  certificationStatus: TestingOrderCertificationStatus;
+  /** Financial */
+  testingFee: string;
+  paymentStatus: TestingOrderPaymentStatus;
+  currency: string;
+  /** Company details (for detail view) */
+  labName: string;
+  labRegistrationNumber: string;
+  contactPerson: string;
+  labPhone: string;
+  labEmail: string;
+  labAddress: string;
+  /** Uploaded documents (for detail view) */
+  assayRequest?: string;
+  invoice?: string;
+  labReportPdf?: string;
+  certificatePdf?: string;
+  complianceDocuments?: string;
 }
 
 /** Step-specific data when admin completes a flow step (e.g. final amount at Price Confirmed) */
@@ -391,6 +442,8 @@ export interface DashboardState {
   logisticsDetails: Record<string, LogisticsDetails>;
   /** 3rd party details for Testing & Certification (input from users in the app; shown in Recent 3rd party details; admin can edit). */
   partnerThirdPartyDetails: PartnerThirdPartyEntry[];
+  /** Active testing orders (Testing & Certification screen grid + detail view). */
+  activeTestingOrders: ActiveTestingOrder[];
   /** Custom mineral categories created in catalog (e.g. in addition to Precious metals, Base metals, Energy minerals, Other). */
   customCategories: string[];
   /** Custom sell submission categories (e.g. in addition to Raw, Semi-Processed, Processed). */
@@ -975,13 +1028,13 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
       const added = action.payload;
       const logisticsForOrder: LogisticsDetails = {
         orderId: added.orderId,
-        carrierName: added.carrierName,
+        carrierName: added.companyName ?? "",
         trackingNumber: added.trackingNumber,
         trackingUrl: added.trackingUrl,
         qrPayload: added.trackingUrl || "",
         contactPhone: added.contactPhone ?? "",
         contactEmail: added.contactEmail ?? "",
-        notes: added.notes ?? "",
+        notes: "",
         shippingAmount: added.shippingAmount,
         shippingCurrency: added.shippingCurrency,
         updatedAt: added.submittedAt ?? new Date().toISOString().slice(0, 10),
@@ -998,13 +1051,13 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
       const existingLog = state.logisticsDetails[p.orderId];
       const logisticsForOrder: LogisticsDetails = {
         orderId: p.orderId,
-        carrierName: p.carrierName,
+        carrierName: p.companyName ?? existingLog?.carrierName ?? "",
         trackingNumber: p.trackingNumber,
         trackingUrl: p.trackingUrl,
         qrPayload: (p.trackingUrl || existingLog?.qrPayload) ?? "",
         contactPhone: p.contactPhone ?? existingLog?.contactPhone ?? "",
         contactEmail: p.contactEmail ?? existingLog?.contactEmail ?? "",
-        notes: p.notes ?? existingLog?.notes ?? "",
+        notes: "",
         shippingAmount: p.shippingAmount ?? existingLog?.shippingAmount,
         shippingCurrency: p.shippingCurrency ?? existingLog?.shippingCurrency,
         updatedAt: new Date().toISOString().slice(0, 10),
@@ -1112,9 +1165,14 @@ const initialState: DashboardState = {
   },
   /** User-submitted 3rd party details (Testing & Certification); displayed in Recent 3rd party details; admin can edit. */
   partnerThirdPartyDetails: [
-    { id: "TP-U-1", orderId: "O-1234", carrierName: "DHL Global", trackingNumber: "DHL9876543210", trackingUrl: "https://track.dhl.com/ref=DHL9876543210", submittedAt: "Jan 28, 2026", contactPhone: "+233 24 555 0192", contactEmail: "support@dhl.com", notes: "Sample for assay", status: "In transit", expectedDeliveryDate: "Feb 05, 2026", deliveredAt: "", testingPartner: "SGS", shippingAmount: "150", shippingCurrency: "USD" },
-    { id: "TP-U-2", orderId: "O-1243", carrierName: "FedEx", trackingNumber: "FX1234567890", trackingUrl: "https://fedex.com/track/FX1234567890", submittedAt: "Jan 25, 2026", status: "Delivered", expectedDeliveryDate: "Jan 28, 2026", deliveredAt: "Jan 28, 2026", testingPartner: "Other", shippingAmount: "85", shippingCurrency: "USD" },
-    { id: "TP-U-3", orderId: "S-ORD-8821", carrierName: "Mineral Bridge Logistics", trackingNumber: "MB-SELL-8821", trackingUrl: "https://track.mineralbridge.com/S-ORD-8821", submittedAt: "Feb 05, 2026", status: "Sample received at lab", expectedDeliveryDate: "Feb 06, 2026", deliveredAt: "Feb 05, 2026", testingPartner: "SGS" },
+    { id: "TP-U-1", orderId: "O-1234", companyName: "SGS Ghana", trackingNumber: "DHL9876543210", trackingUrl: "https://track.dhl.com/ref=DHL9876543210", submittedAt: "Jan 28, 2026", contactPhone: "+233 24 555 0192", contactEmail: "support@dhl.com", companyDetails: "SGS Ghana Ltd, Accra Lab", uploadedDocuments: ["assay_request.pdf", "sample_spec.pdf"], status: "In transit", expectedDeliveryDate: "Feb 05, 2026", deliveredAt: "", testingPartner: "SGS", shippingAmount: "150", shippingCurrency: "USD" },
+    { id: "TP-U-2", orderId: "O-1243", companyName: "FedEx Trade Networks", trackingNumber: "FX1234567890", trackingUrl: "https://fedex.com/track/FX1234567890", submittedAt: "Jan 25, 2026", companyDetails: "FedEx Office, Tema", uploadedDocuments: ["invoice.pdf"], status: "Delivered", expectedDeliveryDate: "Jan 28, 2026", deliveredAt: "Jan 28, 2026 14:00", testingPartner: "Other", shippingAmount: "85", shippingCurrency: "USD" },
+    { id: "TP-U-3", orderId: "S-ORD-8821", companyName: "SGS", trackingNumber: "MB-SELL-8821", trackingUrl: "https://track.mineralbridge.com/S-ORD-8821", submittedAt: "Feb 05, 2026", companyDetails: "Mineral Bridge Logistics → SGS Lab", uploadedDocuments: ["mineral_spec.pdf"], status: "Sample received at lab", expectedDeliveryDate: "Feb 06, 2026", deliveredAt: "Feb 05, 2026 10:30", testingPartner: "SGS", shippingAmount: "120", shippingCurrency: "USD" },
+  ],
+  activeTestingOrders: [
+    { id: "ATO-1", orderId: "O-1234", buyerSellerName: "Samuel Osei", mineralType: "Gold", quantity: "50 kg", testingPartner: "SGS", trackingNumber: "DHL9876543210", courierCompany: "DHL Global", shipmentStatus: "Delivered", expectedDeliveryDate: "Feb 05, 2026", deliveredDate: "Feb 05, 2026", sampleReceivedDate: "Feb 05, 2026", testingStartDate: "Feb 06, 2026", testingStatus: "In Progress", certificationStatus: "Not Issued", testingFee: "1,250", paymentStatus: "Paid", currency: "USD", labName: "SGS Ghana Ltd", labRegistrationNumber: "LAB-GH-2024-001", contactPerson: "Dr. Kofi Asante", labPhone: "+233 24 555 0192", labEmail: "lab.accra@sgs.com", labAddress: "Industrial Area, Accra, Ghana", assayRequest: "assay_request_o1234.pdf", invoice: "invoice_o1234.pdf", labReportPdf: "", certificatePdf: "", complianceDocuments: "compliance_o1234.pdf" },
+    { id: "ATO-2", orderId: "O-1243", buyerSellerName: "Kwesi Mensah", mineralType: "Copper Cathodes", quantity: "1,200 MT", testingPartner: "Bureau Veritas", trackingNumber: "FX1234567890", courierCompany: "FedEx", shipmentStatus: "Delivered", expectedDeliveryDate: "Jan 28, 2026", deliveredDate: "Jan 28, 2026", sampleReceivedDate: "Jan 29, 2026", testingStartDate: "Jan 30, 2026", testingStatus: "Completed", certificationStatus: "Issued", testingFee: "2,800", paymentStatus: "Paid", currency: "USD", labName: "Bureau Veritas Ghana", labRegistrationNumber: "BV-GH-2023-042", contactPerson: "Ama Serwaa", labPhone: "+233 30 123 4567", labEmail: "minerals.gh@bureauveritas.com", labAddress: "Tema Free Zone, Ghana", assayRequest: "assay_o1243.pdf", invoice: "inv_o1243.pdf", labReportPdf: "lab_report_o1243.pdf", certificatePdf: "cert_o1243.pdf", complianceDocuments: "compliance_o1243.pdf" },
+    { id: "ATO-3", orderId: "S-ORD-8821", buyerSellerName: "Amara Okafor", mineralType: "Lithium Ore", quantity: "25 MT", testingPartner: "SGS", trackingNumber: "MB-SELL-8821", courierCompany: "Mineral Bridge Logistics", shipmentStatus: "In transit", expectedDeliveryDate: "Feb 10, 2026", deliveredDate: "", sampleReceivedDate: "", testingStartDate: "", testingStatus: "Pending", certificationStatus: "Not Issued", testingFee: "850", paymentStatus: "Partial", currency: "USD", labName: "SGS Ghana Ltd", labRegistrationNumber: "LAB-GH-2024-001", contactPerson: "Dr. Kofi Asante", labPhone: "+233 24 555 0192", labEmail: "lab.accra@sgs.com", labAddress: "Industrial Area, Accra, Ghana", assayRequest: "assay_s8821.pdf", invoice: "", labReportPdf: "", certificatePdf: "", complianceDocuments: "" },
   ],
   appActivities: [
     { id: "app-1", userId: DEFAULT_USER_ID, type: "profile_updated", description: "Profile name and phone updated", at: new Date(Date.now() - 86400000).toISOString() },

@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 
 const SIX_STEPS = [
-  "1. Send QR 📱",
-  "2. Call Buyer 📞",
+  "1. Send QR",
+  "2. Call Buyer",
   "3. Reserve $ 💰",
   "4. Testing 🔬",
   "5. LC Issued 🏦",

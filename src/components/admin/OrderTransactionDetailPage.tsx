@@ -10,7 +10,7 @@ import {
 import { ArrowLeft, CreditCard, ExternalLink, Gem, Mail, MapPin, Phone, User } from "lucide-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -240,14 +240,17 @@ export function OrderTransactionDetailPage({ orderId, type, onBack, onOpenFullOr
 
       <Stepper6 activeStep={globalStep} onStepChange={(s) => setActiveStep6(s)} />
 
-      <Card className="border-slate-200 dark:border-slate-700">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Gem className="h-4 w-4 text-[#A855F7]" />
+      <Card className="border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+        <CardHeader className="pb-3 pt-5 px-6 border-b border-slate-100 dark:border-slate-800">
+          <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
+            <Gem className="h-4 w-4 text-[#A855F7] shrink-0" />
             {order.type === "Buy" ? "Buy flow (Steps 1–3)" : "Sell flow (Steps 4–6)"}
           </CardTitle>
+          <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {order.type === "Buy" ? "Reserve, pay, and complete the buy order." : "Assign lab, issue LC, and release payment."}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-6 py-5">
           {order.type === "Buy" ? (
             <BuyFlow6
               order={order}
@@ -310,30 +313,39 @@ export function OrderTransactionDetailPage({ orderId, type, onBack, onOpenFullOr
       )}
 
       {relatedTx && relatedTx.status !== "Failed" && (
-        <Card className="border-slate-200 dark:border-slate-700">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-[#A855F7]" />
+        <Card className="border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+          <CardHeader className="pb-3 pt-5 px-6 border-b border-slate-100 dark:border-slate-800">
+            <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
+              <CreditCard className="h-4 w-4 text-[#A855F7] shrink-0" />
               Settlement
             </CardTitle>
+            <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Transaction linked to this order. Release when payment is confirmed.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <span className="font-mono text-muted-foreground">{relatedTx.id}</span>
-              <span className="font-medium">{relatedTx.finalAmount}</span>
-              <Badge variant="secondary" className={relatedTx.status === "Pending" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}>
-                {relatedTx.status}
-              </Badge>
+          <CardContent className="px-6 py-5 space-y-4">
+            <div className="rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="font-mono text-sm font-medium text-slate-600 dark:text-slate-400">{relatedTx.id}</span>
+                <Badge variant="secondary" className={`text-xs font-semibold ${relatedTx.status === "Pending" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"}`}>
+                  {relatedTx.status}
+                </Badge>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-slate-900 dark:text-white">{relatedTx.finalAmount}</span>
+                {relatedTx.currency && (
+                  <span className="text-sm text-slate-500 dark:text-slate-400">{relatedTx.currency}</span>
+                )}
+              </div>
+              {(relatedTx.method || relatedTx.date) && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {[relatedTx.method, relatedTx.date].filter(Boolean).join(" · ")}
+                </p>
+              )}
             </div>
-            {(relatedTx.method || relatedTx.date) && (
-              <p className="text-xs text-muted-foreground">
-                {[relatedTx.method, relatedTx.date].filter(Boolean).join(" · ")}
-              </p>
-            )}
             {relatedTx.status === "Pending" && (
               <Button
-                size="sm"
-                className="bg-[#A855F7] hover:bg-purple-600"
+                className="w-full h-11 bg-[#A855F7] hover:bg-purple-600 font-semibold rounded-lg"
                 onClick={() => setReleaseConfirmTx(relatedTx)}
               >
                 Release Payment

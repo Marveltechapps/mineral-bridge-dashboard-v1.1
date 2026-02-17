@@ -34,6 +34,7 @@ import {
   User,
 } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { useDashboardStore } from "../../store/dashboardStore";
 import type { MineralSubmission } from "../../types/sellSubmissions";
 
@@ -749,16 +750,22 @@ export function SellSubmissionDetailPage({ submissionId, onBack }: SellSubmissio
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    if (!newAuditAction.trim()) return;
+                    const action = newAuditAction.trim();
+                    if (!action) {
+                      toast.error("Enter an action", { description: "e.g. Price updated, Document received" });
+                      return;
+                    }
                     const newEntry = {
                       id: `log-${Date.now()}`,
                       timestamp: new Date(),
-                      action: newAuditAction.trim(),
+                      action,
                       actor: newAuditActor,
                       immutable: false,
                     };
-                    handleUpdateSubmission({ auditLog: [...selectedSubmission.auditLog, newEntry] });
+                    const currentLog = selectedSubmission.auditLog ?? [];
+                    handleUpdateSubmission({ auditLog: [...currentLog, newEntry] });
                     setNewAuditAction("");
+                    toast.success("Audit entry added", { description: action });
                   }}
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -767,7 +774,7 @@ export function SellSubmissionDetailPage({ submissionId, onBack }: SellSubmissio
               </div>
               <Separator />
               <div className="divide-y">
-                {selectedSubmission.auditLog.map((log, i) => (
+                {(selectedSubmission.auditLog ?? []).map((log, i) => (
                   <div key={log.id} className="flex items-start gap-4 p-4">
                     <div className="min-w-[80px] text-xs text-muted-foreground pt-0.5">
                       {format(log.timestamp, "HH:mm")}
@@ -782,7 +789,7 @@ export function SellSubmissionDetailPage({ submissionId, onBack }: SellSubmissio
                     {log.immutable && <Lock className="h-3 w-3 text-slate-300 shrink-0" />}
                   </div>
                 ))}
-                {selectedSubmission.auditLog.length === 0 && (
+                {(selectedSubmission.auditLog ?? []).length === 0 && (
                   <div className="p-4 text-sm text-muted-foreground text-center">No audit entries yet. Add one above.</div>
                 )}
               </div>

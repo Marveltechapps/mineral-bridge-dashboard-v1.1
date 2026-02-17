@@ -73,13 +73,19 @@ export function SellFlow6({
   };
 
   return (
-    <div className="space-y-2 text-sm">
-      <div className="text-xs text-muted-foreground mb-1">Complete Step {currentStep}/3</div>
+    <div className="space-y-4 text-sm">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          Step {currentStep}/3
+        </span>
+        <span className="text-slate-500 dark:text-slate-400 text-xs">Complete the step below</span>
+      </div>
       {currentStep === 1 && (
-        <div className="space-y-2">
+        <div className="space-y-4 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-4 text-slate-900 dark:text-slate-100">
+          <label className="text-xs font-semibold uppercase tracking-wider block">Choose Testing Lab</label>
           <Select value={selectedLab} onValueChange={setSelectedLab}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Choose Testing Lab" />
+            <SelectTrigger className="w-full h-10 rounded-lg border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 data-[placeholder]:text-slate-600 dark:data-[placeholder]:text-slate-300">
+              <SelectValue placeholder="Select a lab (e.g. SGS Ghana)" />
             </SelectTrigger>
             <SelectContent>
               {LABS.map((lab) => (
@@ -91,7 +97,7 @@ export function SellFlow6({
           </Select>
           <Button
             onClick={handleStep1}
-            className="w-full bg-[#A855F7] hover:bg-purple-600"
+            className="w-full h-11 bg-[#A855F7] hover:bg-purple-600 font-semibold rounded-lg"
             disabled={!selectedLab || loading}
           >
             {loading ? "🔬 Assigning..." : "🔬 1. Assign Testing Lab"}
@@ -99,18 +105,22 @@ export function SellFlow6({
         </div>
       )}
       {currentStep === 2 && (
-        <Button onClick={handleStep2} className="w-full" disabled={loading}>
-          {loading ? "🏦 Issuing LC..." : "🏦 2. Issue LC"}
-        </Button>
+        <div className="rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-4 text-slate-900 dark:text-slate-100">
+          <Button onClick={handleStep2} className="w-full h-11 font-semibold rounded-lg" disabled={loading}>
+            {loading ? "🏦 Issuing LC..." : "🏦 2. Issue LC"}
+          </Button>
+        </div>
       )}
       {currentStep === 3 && (
-        <Button
-          onClick={handleStep3}
-          className="w-full bg-emerald-600 hover:bg-emerald-700"
-          disabled={loading}
-        >
-          {loading ? "💸 Releasing..." : `💸 3. Release ${amount}`}
-        </Button>
+        <div className="rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-4 text-slate-900 dark:text-slate-100">
+          <Button
+            onClick={handleStep3}
+            className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 font-semibold rounded-lg"
+            disabled={loading}
+          >
+            {loading ? "💸 Releasing..." : `💸 3. Release ${amount}`}
+          </Button>
+        </div>
       )}
     </div>
   );

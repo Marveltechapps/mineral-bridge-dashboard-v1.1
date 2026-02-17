@@ -36,8 +36,8 @@ interface DashboardProps {
 
 const QUICK_ACCESS: { view: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { view: "users", label: "User Management", icon: Users },
-  { view: "minerals", label: "Buyer Management", icon: GemIcon },
-  { view: "sell-minerals", label: "Seller Management", icon: ShoppingCart },
+  { view: "minerals", label: "Buy management", icon: GemIcon },
+  { view: "sell-minerals", label: "Sell management", icon: ShoppingCart },
   { view: "orders", label: "Orders & Settlements", icon: ShoppingCart },
   { view: "enquiries", label: "Enquiry & Support", icon: MessageSquare },
   { view: "finance", label: "Financial Reporting", icon: DollarSign },

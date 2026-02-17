@@ -59,14 +59,14 @@ export function BuyActions({
           onOpenQR?.(order);
         }}
       >
-        📱 Send QR
+        Send QR
       </Button>
       <Button
         size="sm"
         variant="outline"
         onClick={() => onCallBuyer?.(order)}
       >
-        📞 Call Buyer
+        Call Buyer
       </Button>
       <Button
         size="sm"
