@@ -410,7 +410,7 @@ export interface Enquiry {
 export interface AppActivity {
   id: string;
   userId: string;
-  type: "profile_updated" | "kyc_doc_uploaded" | "onboarding_step" | "listing_created" | "order_submitted" | "app_login" | "settings_updated" | "safety_upload" | "payment_released" | "bulk_export" | "email_sent" | "sms_sent" | "user_status_updated" | "enquiry_replied" | "dashboard_login" | "other";
+  type: "profile_updated" | "kyc_doc_uploaded" | "onboarding_step" | "listing_created" | "order_submitted" | "app_login" | "settings_updated" | "safety_upload" | "payment_released" | "bulk_export" | "email_sent" | "sms_sent" | "user_status_updated" | "enquiry_replied" | "dashboard_login" | "submission_audit" | "order_communication" | "other";
   description: string;
   at: string;
   metadata?: Record<string, string>;
@@ -1209,6 +1209,8 @@ export function useAllOrders(): Order[] {
 
 export function getRegistryUserName(registryUsers: RegistryUserRow[], userId?: string): string {
   if (!userId) return "—";
+  if (userId === "system") return "System";
+  if (userId === "1") return "Admin";
   const u = registryUsers.find((r) => r.id === userId);
   return u ? u.name : "—";
 }

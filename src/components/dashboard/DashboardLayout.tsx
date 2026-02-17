@@ -224,11 +224,6 @@ export function DashboardLayout({ children, currentView = "dashboard", onViewCha
                 <span className="sr-only">Toggle sidebar</span>
               </SidebarTrigger>
               
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-500">Overview</span>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
-              </div>
-
               <form className="relative flex-1 max-w-md mx-4" onSubmit={handleSearchSubmit}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input

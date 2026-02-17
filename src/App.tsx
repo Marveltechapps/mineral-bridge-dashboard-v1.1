@@ -165,6 +165,7 @@ function AppContent() {
           onNavigateToEnquiries={(userId) => navigateTo("enquiries", userId ? { selectedUserId: userId } : {})}
           onNavigateToDisputes={(orderId) => navigateTo("disputes", orderId ? { selectedOrderId: orderId } : {})}
           onNavigateToLogistics={(orderId) => navigateTo("logistics", orderId ? { selectedOrderId: orderId } : {})}
+          onNavigateToAuditLog={() => navigateTo("audit-log", {})}
         />
       );
     }
@@ -182,6 +183,7 @@ function AppContent() {
           onNavigateToEnquiries={(userId) => navigateTo("enquiries", userId ? { selectedUserId: userId } : {})}
           onNavigateToDisputes={(orderId) => navigateTo("disputes", orderId ? { selectedOrderId: orderId } : {})}
           onNavigateToLogistics={(orderId) => navigateTo("logistics", orderId ? { selectedOrderId: orderId } : {})}
+          onNavigateToAuditLog={() => navigateTo("audit-log", {})}
         />
       );
     }
@@ -190,6 +192,7 @@ function AppContent() {
         <SellSubmissionDetailPage
           submissionId={viewParams.selectedSubmissionId}
           onBack={() => navigateTo("sell-minerals", {})}
+          onNavigateToAuditLog={() => navigateTo("audit-log", {})}
         />
       );
     }
@@ -467,6 +470,7 @@ function AppContent() {
             }}
             onNavigateToTransaction={() => setCurrentView("finance-transactions")}
             onNavigateToUser={(userId) => navigateTo("users", { selectedUserId: userId })}
+            onNavigateToSubmission={(submissionId) => navigateTo("sell-submission-detail", { selectedSubmissionId: submissionId })}
           />
         );
       case "profile":

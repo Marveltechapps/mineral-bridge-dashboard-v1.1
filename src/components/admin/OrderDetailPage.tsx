@@ -59,7 +59,7 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { useDashboardStore, getRegistryUserName, getLogisticsDetailsForOrder, getOrderIsInternational } from "../../store/dashboardStore";
+import { useDashboardStore, getRegistryUserName, getLogisticsDetailsForOrder, getOrderIsInternational, type AppActivity } from "../../store/dashboardStore";
 import type { Order, OrderFlowStepData, OrderDeliveryLocation, SentToUser } from "../../store/dashboardStore";
 import { toast } from "sonner";
 
@@ -140,6 +140,7 @@ export interface OrderDetailPageProps {
   onNavigateToEnquiries?: (userId?: string) => void;
   onNavigateToDisputes?: (orderId?: string) => void;
   onNavigateToLogistics?: (orderId?: string) => void;
+  onNavigateToAuditLog?: () => void;
 }
 
 export function OrderDetailPage({
@@ -151,6 +152,7 @@ export function OrderDetailPage({
   onNavigateToEnquiries,
   onNavigateToDisputes,
   onNavigateToLogistics,
+  onNavigateToAuditLog,
 }: OrderDetailPageProps) {
   const { state, dispatch } = useDashboardStore();
   const [orderForStatus, setOrderForStatus] = useState<Order | null>(null);
@@ -997,11 +999,17 @@ export function OrderDetailPage({
           </TabsContent>
 
           <TabsContent value="activity" className="mt-0 space-y-6">
-            <Card className="border-none shadow-sm">
+            <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <div>
                   <CardTitle className="text-base">Communication</CardTitle>
-                  <CardDescription>Record when the team contacts the user (by email or mobile), price updates, and other actions.</CardDescription>
+                  <CardDescription>Record when the team contacts the user (by email or mobile), price updates, and other actions. Entries also appear in the main Audit &amp; Activity Log.</CardDescription>
+                  {onNavigateToAuditLog && (
+                    <button type="button" onClick={onNavigateToAuditLog} className="text-sm font-medium text-[#A855F7] hover:underline inline-flex items-center gap-1 mt-1">
+                      View in Audit &amp; Activity Log
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
                 <Button size="sm" variant="outline" onClick={() => { setCommEvent(""); setCommNote(""); setCommAdmin("Admin"); setCommContactMethod(""); setAddCommOpen(true); }}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -1576,6 +1584,16 @@ export function OrderDetailPage({
                 };
                 const updated = { ...order, commLog: [...(order.commLog ?? []), newEntry] };
                 dispatch({ type: "UPDATE_ORDER", payload: updated });
+                const desc = [commEvent.trim(), commContactMethod || null, commNote.trim() || null].filter(Boolean).join(" · ");
+                const appActivity: AppActivity = {
+                  id: `comm-${Date.now()}`,
+                  userId: "1",
+                  type: "order_communication",
+                  description: desc,
+                  at: new Date().toISOString(),
+                  metadata: { orderId: order.id, orderType: type },
+                };
+                dispatch({ type: "ADD_APP_ACTIVITY", payload: appActivity });
                 toast.success("Log entry added");
                 setAddCommOpen(false);
                 setCommEvent("");

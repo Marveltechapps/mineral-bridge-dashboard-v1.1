@@ -32,10 +32,19 @@ import {
   BookOpen,
   Plus,
   User,
+  ExternalLink,
 } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { useDashboardStore } from "../../store/dashboardStore";
+import { useDashboardStore, type AppActivity } from "../../store/dashboardStore";
 import type { MineralSubmission } from "../../types/sellSubmissions";
 
 const UNIT_OPTIONS = ["grams", "kg", "MT"] as const;
@@ -46,6 +55,7 @@ const SELL_CATEGORY_ORDER = ["Raw", "Semi-Processed", "Processed"] as const;
 export interface SellSubmissionDetailPageProps {
   submissionId: string;
   onBack: () => void;
+  onNavigateToAuditLog?: () => void;
 }
 
 function getStatusColor(status: string) {
@@ -65,7 +75,7 @@ function getStatusColor(status: string) {
   }
 }
 
-export function SellSubmissionDetailPage({ submissionId, onBack }: SellSubmissionDetailPageProps) {
+export function SellSubmissionDetailPage({ submissionId, onBack, onNavigateToAuditLog }: SellSubmissionDetailPageProps) {
   const { state, dispatch } = useDashboardStore();
   const submission = useMemo(
     () => state.mineralSubmissions.find((s) => s.id === submissionId),
@@ -717,13 +727,24 @@ export function SellSubmissionDetailPage({ submissionId, onBack }: SellSubmissio
           </Card>
         </section>
 
-        {/* 5. Audit & Activity Log – add entries */}
+        {/* 5. Audit & Activity Log – add entries (connected to main Audit & Activity Log) */}
         <section className="space-y-3 pb-8">
-          <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
-            <History className="h-5 w-5 text-slate-500" />
+          <div className="flex flex-wrap items-center gap-2 text-slate-900 dark:text-slate-100">
+            <History className="h-5 w-5 text-slate-500 shrink-0" />
             <h3 className="font-semibold text-lg">Audit & Activity Log</h3>
+            {onNavigateToAuditLog && (
+              <button
+                type="button"
+                onClick={onNavigateToAuditLog}
+                className="text-sm font-medium text-[#A855F7] hover:underline inline-flex items-center gap-1"
+              >
+                View in Audit & Activity Log
+                <ExternalLink className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
-          <Card className="border-none shadow-sm">
+          <p className="text-muted-foreground text-sm">Entries here also appear in the main Audit & Activity Log.</p>
+          <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
             <CardContent className="p-4 space-y-4">
               <div className="flex flex-wrap gap-2 items-end">
                 <div className="flex-1 min-w-[200px] space-y-2">
@@ -764,6 +785,16 @@ export function SellSubmissionDetailPage({ submissionId, onBack }: SellSubmissio
                     };
                     const currentLog = selectedSubmission.auditLog ?? [];
                     handleUpdateSubmission({ auditLog: [...currentLog, newEntry] });
+                    const activityUserId = newAuditActor === "Seller" ? selectedSubmission.sellerId : newAuditActor === "Admin" ? "1" : "system";
+                    const appActivity: AppActivity = {
+                      id: `submission-audit-${Date.now()}`,
+                      userId: activityUserId,
+                      type: "submission_audit",
+                      description: action,
+                      at: newEntry.timestamp.toISOString(),
+                      metadata: { submissionId: selectedSubmission.id },
+                    };
+                    dispatch({ type: "ADD_APP_ACTIVITY", payload: appActivity });
                     setNewAuditAction("");
                     toast.success("Audit entry added", { description: action });
                   }}
@@ -773,26 +804,39 @@ export function SellSubmissionDetailPage({ submissionId, onBack }: SellSubmissio
                 </Button>
               </div>
               <Separator />
-              <div className="divide-y">
-                {(selectedSubmission.auditLog ?? []).map((log, i) => (
-                  <div key={log.id} className="flex items-start gap-4 p-4">
-                    <div className="min-w-[80px] text-xs text-muted-foreground pt-0.5">
-                      {format(log.timestamp, "HH:mm")}
-                      <div className="text-[10px] opacity-70">{format(log.timestamp, "MMM dd")}</div>
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium">{log.action}</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="secondary" className="text-[10px] h-4 px-1">{log.actor}</Badge>
-                      </div>
-                    </div>
-                    {log.immutable && <Lock className="h-3 w-3 text-slate-300 shrink-0" />}
-                  </div>
-                ))}
-                {(selectedSubmission.auditLog ?? []).length === 0 && (
-                  <div className="p-4 text-sm text-muted-foreground text-center">No audit entries yet. Add one above.</div>
-                )}
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50 dark:bg-slate-900/50">
+                      <TableHead className="font-semibold">Time</TableHead>
+                      <TableHead className="font-semibold">Actor</TableHead>
+                      <TableHead className="font-semibold">Description</TableHead>
+                      <TableHead className="w-8" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(selectedSubmission.auditLog ?? []).map((log) => (
+                      <TableRow key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30">
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {format(log.timestamp, "MMM d, yyyy HH:mm")}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="font-normal">
+                            {log.actor}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{log.action}</TableCell>
+                        <TableCell>
+                          {log.immutable && <Lock className="h-3 w-3 text-slate-400 shrink-0" />}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
+              {(selectedSubmission.auditLog ?? []).length === 0 && (
+                <p className="text-sm text-muted-foreground py-6 text-center">No audit entries yet. Add one above.</p>
+              )}
             </CardContent>
           </Card>
         </section>

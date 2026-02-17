@@ -38,6 +38,8 @@ const TYPE_LABELS: Record<AppActivity["type"], string> = {
   user_status_updated: "User Status",
   enquiry_replied: "Enquiry",
   dashboard_login: "Login",
+  submission_audit: "Submission",
+  order_communication: "Communication",
   other: "Other",
 };
 
@@ -45,10 +47,12 @@ export function AuditLogPage({
   onNavigateToOrder,
   onNavigateToTransaction,
   onNavigateToUser,
+  onNavigateToSubmission,
 }: {
   onNavigateToOrder?: (orderId: string, type: "buy" | "sell") => void;
   onNavigateToTransaction?: (transactionId: string) => void;
   onNavigateToUser?: (userId: string) => void;
+  onNavigateToSubmission?: (submissionId: string) => void;
 }) {
   const { state } = useDashboardStore();
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -74,7 +78,8 @@ export function AuditLogPage({
           getUserName(a.userId).toLowerCase().includes(q) ||
           a.description.toLowerCase().includes(q) ||
           (a.metadata?.orderId ?? "").toLowerCase().includes(q) ||
-          (a.metadata?.transactionId ?? "").toLowerCase().includes(q)
+          (a.metadata?.transactionId ?? "").toLowerCase().includes(q) ||
+          (a.metadata?.submissionId ?? "").toLowerCase().includes(q)
       );
     }
     return list;
@@ -186,7 +191,17 @@ export function AuditLogPage({
                             <ExternalLink className="h-3 w-3" />
                           </button>
                         )}
-                        {!a.metadata?.orderId && !a.metadata?.transactionId && !a.metadata?.userId && (
+                        {a.metadata?.submissionId && (
+                          <button
+                            type="button"
+                            onClick={() => onNavigateToSubmission?.(a.metadata!.submissionId!)}
+                            className="text-xs font-medium text-[#A855F7] hover:underline inline-flex items-center gap-1"
+                          >
+                            Submission
+                            <ExternalLink className="h-3 w-3" />
+                          </button>
+                        )}
+                        {!a.metadata?.orderId && !a.metadata?.transactionId && !a.metadata?.userId && !a.metadata?.submissionId && (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </div>
