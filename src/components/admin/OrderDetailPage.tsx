@@ -59,18 +59,20 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { useDashboardStore, getRegistryUserName, getLogisticsDetailsForOrder, getOrderIsInternational, type AppActivity } from "../../store/dashboardStore";
-import type { Order, OrderFlowStepData, OrderDeliveryLocation, SentToUser } from "../../store/dashboardStore";
+import { useDashboardStore, getRegistryUserName, getLogisticsDetailsForOrder, getOrderIsInternational, normalizePhone, getCallHistoryForPhone, type AppActivity } from "../../store/dashboardStore";
+import type { Order, OrderFlowStepData, OrderDeliveryLocation, SentToUser, CallHistoryEntry } from "../../store/dashboardStore";
 import { toast } from "sonner";
 
 type StepDialogType = "priceConfirmed" | "paymentInitiated" | "orderCompleted" | null;
 
-const SENT_TYPES: SentToUser["type"][] = ["transport_link", "qr_or_bank", "sample_pickup_link", "lc_credit"];
+const SENT_TYPES: SentToUser["type"][] = ["transport_link", "qr_or_bank", "sample_pickup_link", "lc_credit", "testing_certificate", "lab_report"];
 const SENT_TYPE_LABELS: Record<SentToUser["type"], string> = {
   transport_link: "Logistics / transport link",
   qr_or_bank: "Bank details / QR or code",
   sample_pickup_link: "Sample pickup link",
   lc_credit: "LC / credit",
+  testing_certificate: "Testing certificate",
+  lab_report: "Lab report",
 };
 
 const ORDER_STATUSES = [
@@ -164,6 +166,9 @@ export function OrderDetailPage({
   const [commNote, setCommNote] = useState("");
   const [commAdmin, setCommAdmin] = useState("Admin");
   const [commContactMethod, setCommContactMethod] = useState<"Email" | "Mobile" | "">("");
+  const [logCallOpen, setLogCallOpen] = useState(false);
+  const [logCallNote, setLogCallNote] = useState("");
+  const [logCallAdmin, setLogCallAdmin] = useState("Admin");
   const [addSentOpen, setAddSentOpen] = useState(false);
   const [sentType, setSentType] = useState<SentToUser["type"]>("transport_link");
   const [sentLabel, setSentLabel] = useState("");
@@ -558,6 +563,14 @@ export function OrderDetailPage({
                                 </li>
                               ))}
                             </ul>
+                          </div>
+                        )}
+                        {contactPhone && contactPhone !== "—" && (
+                          <div className="pt-3">
+                            <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => { setLogCallNote(""); setLogCallAdmin("Admin"); setLogCallOpen(true); }}>
+                              <Phone className="h-4 w-4" />
+                              Log call to {contactPhone}
+                            </Button>
                           </div>
                         )}
                       </>
@@ -999,7 +1012,39 @@ export function OrderDetailPage({
           </TabsContent>
 
           <TabsContent value="activity" className="mt-0 space-y-6">
-            <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
+            {(() => {
+              const orderPhone = order.contactInfo?.phone ?? state.registryUsers.find((u) => u.id === order.userId)?.phone;
+              const callHistoryForNumber = orderPhone ? getCallHistoryForPhone(state, orderPhone) : [];
+              return orderPhone && callHistoryForNumber.length > 0 ? (
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-emerald-600" />
+                      Call history for this number ({orderPhone})
+                    </CardTitle>
+                    <CardDescription>All contacts to this phone across orders.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {callHistoryForNumber.map((ch) => (
+                        <li key={ch.id} className="flex justify-between items-start gap-4 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0 text-sm">
+                          <div>
+                            <p className="font-medium text-slate-900 dark:text-slate-100 capitalize">{ch.type}</p>
+                            {ch.contextLabel && <p className="text-xs text-muted-foreground">{ch.contextLabel}</p>}
+                            {ch.note && <p className="text-xs text-muted-foreground mt-0.5">{ch.note}</p>}
+                          </div>
+                          <div className="text-right shrink-0 text-xs text-muted-foreground">
+                            {ch.admin} · {new Date(ch.at).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ) : null;
+            })()}
+
+            <Card className="border-none shadow-sm">
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <div>
                   <CardTitle className="text-base">Communication</CardTitle>
@@ -1594,6 +1639,25 @@ export function OrderDetailPage({
                   metadata: { orderId: order.id, orderType: type },
                 };
                 dispatch({ type: "ADD_APP_ACTIVITY", payload: appActivity });
+                if (commContactMethod === "Mobile" || commContactMethod === "Email") {
+                  const phone = order.contactInfo?.phone ?? state.registryUsers.find((u) => u.id === order.userId)?.phone;
+                  if (phone?.trim()) {
+                    const chEntry: CallHistoryEntry = {
+                      id: `ch-${Date.now()}`,
+                      phoneNumber: phone.trim(),
+                      normalizedPhone: normalizePhone(phone),
+                      orderId: order.id,
+                      userId: order.userId,
+                      contextLabel: `${order.id} (${order.contactInfo?.name ?? getRegistryUserName(state.registryUsers, order.userId) ?? "—"})`,
+                      at: new Date().toISOString(),
+                      note: commNote.trim() || commEvent.trim(),
+                      admin: commAdmin.trim() || "Admin",
+                      contactMethod: commContactMethod,
+                      type: commContactMethod === "Mobile" ? "call" : "email",
+                    };
+                    dispatch({ type: "ADD_CALL_HISTORY", payload: chEntry });
+                  }
+                }
                 toast.success("Log entry added");
                 setAddCommOpen(false);
                 setCommEvent("");
@@ -1602,6 +1666,68 @@ export function OrderDetailPage({
               }}
             >
               Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Log call dialog */}
+      <Dialog open={logCallOpen} onOpenChange={setLogCallOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Log call</DialogTitle>
+            <DialogDescription>Record that you called this order&apos;s contact. Saved to call history (by number) and to this order&apos;s communication log.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="log-call-note">Note (optional)</Label>
+              <Textarea id="log-call-note" value={logCallNote} onChange={(e) => setLogCallNote(e.target.value)} placeholder="e.g. Discussed delivery date" rows={2} className="resize-none" />
+            </div>
+            <div>
+              <Label htmlFor="log-call-admin">Admin</Label>
+              <Input id="log-call-admin" value={logCallAdmin} onChange={(e) => setLogCallAdmin(e.target.value)} placeholder="Admin" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogCallOpen(false)}>Cancel</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => {
+                if (!order) return;
+                const phone = order.contactInfo?.phone ?? state.registryUsers.find((u) => u.id === order.userId)?.phone;
+                if (!phone?.trim()) {
+                  toast.error("No phone number for this order.");
+                  return;
+                }
+                const date = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+                const commEntry = {
+                  event: "Call logged",
+                  admin: logCallAdmin.trim() || "Admin",
+                  date,
+                  note: logCallNote.trim() || undefined,
+                  contactMethod: "Mobile" as const,
+                };
+                const chEntry: CallHistoryEntry = {
+                  id: `ch-${Date.now()}`,
+                  phoneNumber: phone.trim(),
+                  normalizedPhone: normalizePhone(phone),
+                  orderId: order.id,
+                  userId: order.userId,
+                  contextLabel: `${order.id} (${order.contactInfo?.name ?? getRegistryUserName(state.registryUsers, order.userId) ?? "—"})`,
+                  at: new Date().toISOString(),
+                  note: logCallNote.trim() || undefined,
+                  admin: logCallAdmin.trim() || "Admin",
+                  contactMethod: "Mobile",
+                  type: "call",
+                };
+                dispatch({ type: "ADD_CALL_HISTORY", payload: chEntry });
+                dispatch({ type: "UPDATE_ORDER", payload: { ...order, commLog: [...(order.commLog ?? []), commEntry] } });
+                toast.success("Call logged");
+                setLogCallOpen(false);
+                setLogCallNote("");
+              }}
+            >
+              Log call
             </Button>
           </DialogFooter>
         </DialogContent>

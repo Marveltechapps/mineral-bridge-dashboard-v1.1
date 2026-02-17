@@ -34,6 +34,7 @@ import { SellSubmissionDetailPage } from "./components/admin/SellSubmissionDetai
 import { InsuranceManagement } from "./components/admin/InsuranceManagement";
 import { AdminSettings } from "./components/admin/AdminSettings";
 import { AuditLogPage } from "./components/admin/AuditLogPage";
+import { CallHistoryPage } from "./components/admin/CallHistoryPage";
 import { ProfilePage } from "./components/admin/ProfilePage";
 import { HelpPage } from "./components/admin/HelpPage";
 import { Notifications } from "./components/dashboard/Notifications";
@@ -264,7 +265,7 @@ function AppContent() {
           />
         );
       case "compliance":
-        return <ComplianceVerification />;
+        return <ComplianceVerification onNavigateToAuditLog={() => navigateTo("audit-log", {})} />;
       case "orders":
         return (
           <OrderTransactionManagement
@@ -277,6 +278,7 @@ function AppContent() {
             onNavigateToEnquiries={(userId) => navigateTo("enquiries", userId ? { selectedUserId: userId } : {})}
             onNavigateToFinance={() => setCurrentView("finance")}
             onNavigateToLogistics={(orderId) => navigateTo("logistics", orderId ? { selectedOrderId: orderId } : {})}
+            onNavigateToFinanceTransactions={() => navigateTo("finance-transactions", {})}
           />
         );
       case "orders-order-detail":
@@ -290,6 +292,20 @@ function AppContent() {
                 setOrderDetail(null);
               }}
               onOpenFullOrderDetail={() => setCurrentView(orderDetail.type === "sell" ? "sell-order-detail" : "buy-order-detail")}
+              onOpenFinancialFlow={(transactionId, step) => {
+                const viewMap: Record<FinancialFlowStep, string> = {
+                  "send-qr": "finance-send-qr",
+                  "call-buyer": "finance-call-buyer",
+                  "reserve-escrow": "finance-reserve-escrow",
+                  "testing": "finance-testing",
+                  "lc-issued": "finance-lc-issued",
+                  "release": "finance-release",
+                };
+                navigateTo(viewMap[step], {
+                  selectedFinancialTransactionId: transactionId,
+                  selectedFinancialFlowStep: step,
+                });
+              }}
             />
           );
         }
@@ -304,6 +320,7 @@ function AppContent() {
             onNavigateToEnquiries={(userId) => navigateTo("enquiries", userId ? { selectedUserId: userId } : {})}
             onNavigateToFinance={() => setCurrentView("finance")}
             onNavigateToLogistics={(orderId) => navigateTo("logistics", orderId ? { selectedOrderId: orderId } : {})}
+            onNavigateToFinanceTransactions={() => navigateTo("finance-transactions", {})}
           />
         );
       case "enquiries":
@@ -471,6 +488,16 @@ function AppContent() {
             onNavigateToTransaction={() => setCurrentView("finance-transactions")}
             onNavigateToUser={(userId) => navigateTo("users", { selectedUserId: userId })}
             onNavigateToSubmission={(submissionId) => navigateTo("sell-submission-detail", { selectedSubmissionId: submissionId })}
+          />
+        );
+      case "call-history":
+        return (
+          <CallHistoryPage
+            onBack={() => setCurrentView("dashboard")}
+            onOpenOrder={(orderId, type) => {
+              setOrderDetail({ orderId, type });
+              setCurrentView(type === "sell" ? "sell-order-detail" : "buy-order-detail");
+            }}
           />
         );
       case "profile":

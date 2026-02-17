@@ -2018,7 +2018,7 @@ export function UserManagement({ initialSelectedUserId }: UserManagementProps = 
                                      {selectedOrder.sentToUser.map((item, idx) => (
                                        <div key={idx} className="p-4 rounded-2xl border border-slate-100 bg-slate-50/50 flex items-start gap-3">
                                          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                                           {item.type === "transport_link" ? <Truck className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
+                                           {item.type === "transport_link" ? <Truck className="w-5 h-5" /> : item.type === "testing_certificate" || item.type === "lab_report" ? <FileCheck className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
                                          </div>
                                          <div className="min-w-0">
                                            <p className="text-sm font-black text-slate-900">{item.label}</p>

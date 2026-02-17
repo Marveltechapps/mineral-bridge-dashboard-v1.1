@@ -44,7 +44,23 @@ import {
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { toast } from "sonner@2.0.3";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
+import { Label } from "../ui/label";
+import { Input } from "../ui/input";
+import { toast } from "sonner";
 
 // --- Mock Data ---
 
@@ -132,34 +148,47 @@ const StatCard = ({ title, value, badge, badgeColor, progress, trend, chart }: a
   </motion.div>
 );
 
-const DetailModal = ({ isOpen, onClose, entity }: any) => {
-  const [activeTab, setActiveTab] = useState('overview');
+const DetailModal = ({ isOpen, onClose, entity, onApprove, onReject, onScoreUpdate, initialTab }: any) => {
+  const [activeTab, setActiveTab] = useState(initialTab || 'overview');
   const [isVerifying, setIsVerifying] = useState(false);
+
+  React.useEffect(() => {
+    if (isOpen && initialTab) setActiveTab(initialTab);
+  }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
 
   const handleAiVerify = () => {
+    if (!entity) return;
     setIsVerifying(true);
     setTimeout(() => {
+      const newScore = Math.min(100, entity.score + 5);
+      onScoreUpdate?.(entity.id, newScore);
       setIsVerifying(false);
       toast.success("AI Legality Check completed. Entity score updated.");
     }, 2000);
   };
 
+  const handleApprove = () => {
+    onApprove?.(entity);
+    onClose();
+  };
+
+  const handleReject = () => {
+    onReject?.(entity);
+    onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-end">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+    <div className="fixed inset-0 z-[100] flex items-center justify-end" role="dialog" aria-modal="true">
+      <div
         onClick={onClose}
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        aria-hidden="true"
       />
-      <motion.div 
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        className="relative w-full max-w-[800px] h-full bg-slate-50 dark:bg-slate-950 shadow-2xl flex flex-col"
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-[800px] h-full bg-slate-50 dark:bg-slate-950 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
       >
         <div className="p-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
           <div className="flex items-center gap-4">
@@ -343,23 +372,23 @@ const DetailModal = ({ isOpen, onClose, entity }: any) => {
         </div>
 
         <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex gap-3">
-          <Button onClick={() => {toast.success("Approved successfully"); onClose();}} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 rounded-lg">
+          <Button onClick={handleApprove} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 rounded-lg">
             <CheckCircle2 className="w-4 h-4 mr-2" />
             Approve Entity
           </Button>
-          <Button onClick={() => {toast.error("Rejected entity"); onClose();}} variant="destructive" className="flex-1 font-bold h-11 rounded-lg">
+          <Button onClick={handleReject} variant="destructive" className="flex-1 font-bold h-11 rounded-lg">
             <XCircle className="w-4 h-4 mr-2" />
             Reject
           </Button>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };
 
 // --- Main Page ---
 
-export const ComplianceVerification = () => {
+export const ComplianceVerification = ({ onNavigateToAuditLog }: { onNavigateToAuditLog?: () => void } = {}) => {
   const { state } = useDashboardStore();
   const registryPendingCount = state.registryUsers.filter((u) => u.status === "Under Review" || u.status === "Not Submitted").length;
 
@@ -367,8 +396,12 @@ export const ComplianceVerification = () => {
   const [statusFilter, setStatusFilter] = useState('All');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
+  const [selectedModalTab, setSelectedModalTab] = useState<string>('overview');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [verifications, setVerifications] = useState(INITIAL_VERIFICATIONS);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchFile, setBatchFile] = useState<File | null>(null);
 
   const filteredVerifications = useMemo(() => {
     return verifications
@@ -395,13 +428,177 @@ export const ComplianceVerification = () => {
     setSortConfig({ key, direction });
   };
 
-  const handleBulkApprove = () => {
-    toast.success("Bulk approval initiated for selected items.");
+  const updateEntityStatus = (id: string, status: string) => {
+    setVerifications((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, status, updated: "Just now" } : v))
+    );
+  };
+
+  const updateEntityScore = (id: string, newScore: number) => {
+    setVerifications((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, score: newScore, updated: "Just now" } : v))
+    );
+    if (selectedEntity?.id === id) setSelectedEntity((e: any) => (e ? { ...e, score: newScore, updated: "Just now" } : e));
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredVerifications.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredVerifications.map((v) => v.id)));
+    }
+  };
+
+  const handleBulkApprove = (item?: any) => {
+    if (item) {
+      updateEntityStatus(item.id, "Approved");
+      toast.success(`${item.name} approved`);
+      return;
+    }
+    const ids = selectedIds.size > 0 ? selectedIds : new Set(filteredVerifications.map((v) => v.id));
+    ids.forEach((id) => updateEntityStatus(id, "Approved"));
+    setSelectedIds(new Set());
+    toast.success(`${ids.size} entity(ies) approved`);
   };
 
   const refreshData = () => {
     setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 800);
+    setTimeout(() => {
+      setIsLoading(false);
+      toast.success("Data refreshed");
+    }, 800);
+  };
+
+  const handleExport = () => {
+    const headers = ["id", "name", "type", "status", "score", "country", "countryName", "docs", "totalDocs", "issues", "updated"];
+    const rows = filteredVerifications.map((v) =>
+      headers.map((h) => (h === "issues" ? (v.issues || []).join("; ") : String((v as any)[h] ?? "").replace(/"/g, '""')))
+    );
+    const csv = [headers.join(","), ...rows.map((r) => r.map((c) => (c.includes(",") ? `"${c}"` : c)).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `compliance-verifications-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Export downloaded");
+  };
+
+  const handleNewBatchVerify = () => setBatchModalOpen(true);
+
+  const handleBatchSubmit = () => {
+    if (batchFile) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = String(reader.result);
+        const lines = text.split(/\r?\n/).filter((l) => l.trim());
+        if (lines.length > 1) {
+          const newRows = lines.slice(1, 6).map((line, i) => {
+            const cols = line.split(",").map((c) => c.replace(/^"|"$/g, "").trim());
+            return {
+              id: String(110 + verifications.length + i),
+              name: cols[0] || `Batch ${i + 1}`,
+              type: (cols[1] as any) || "Business",
+              status: "Pending",
+              score: 70 + Math.floor(Math.random() * 20),
+              country: cols[2] || "IN",
+              countryName: cols[3] || "India",
+              docs: 0,
+              totalDocs: 7,
+              issues: [],
+              updated: "Just now",
+              avatar: (cols[0] || "B").slice(0, 2).toUpperCase(),
+            };
+          });
+          setVerifications((prev) => [...prev, ...newRows]);
+          toast.success(`${newRows.length} verification(s) added from batch`);
+        } else {
+          const mock = {
+            id: String(110 + verifications.length),
+            name: `Batch Entity ${verifications.length + 1}`,
+            type: "Business",
+            status: "Pending",
+            score: 75,
+            country: "IN",
+            countryName: "India",
+            docs: 0,
+            totalDocs: 7,
+            issues: [],
+            updated: "Just now",
+            avatar: "BE",
+          };
+          setVerifications((prev) => [...prev, mock]);
+          toast.success("1 verification added from batch");
+        }
+        setBatchModalOpen(false);
+        setBatchFile(null);
+      };
+      reader.readAsText(batchFile);
+    } else {
+      const mock = {
+        id: String(110 + verifications.length),
+        name: `New Entity ${verifications.length + 1}`,
+        type: "Business",
+        status: "Pending",
+        score: 78,
+        country: "GH",
+        countryName: "Ghana",
+        docs: 0,
+        totalDocs: 7,
+        issues: [],
+        updated: "Just now",
+        avatar: "NE",
+      };
+      setVerifications((prev) => [...prev, mock]);
+      toast.success("1 verification added");
+      setBatchModalOpen(false);
+    }
+  };
+
+  const handleQuickAction = (label: string) => {
+    if (label === "Audit Logs") {
+      onNavigateToAuditLog?.();
+      return;
+    }
+    if (label === "Bulk Approve") {
+      handleBulkApprove();
+      return;
+    }
+    if (label === "Run AI Check") {
+      const ids = selectedIds.size > 0 ? selectedIds : new Set(filteredVerifications.map((v) => v.id));
+      ids.forEach((id) => {
+        const v = verifications.find((x) => x.id === id);
+        if (v) updateEntityScore(id, Math.min(100, v.score + 5));
+      });
+      setSelectedIds(new Set());
+      toast.success(`AI check run for ${ids.size} entity(ies). Scores updated.`);
+      return;
+    }
+    if (label === "Upload Batch") {
+      setBatchModalOpen(true);
+      return;
+    }
+  };
+
+  const handleReject = (item: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    updateEntityStatus(item.id, "Rejected");
+    toast.error(`${item.name} rejected`);
+  };
+
+  const openModalWithTab = (item: any, tab: string) => {
+    setSelectedModalTab(tab);
+    setSelectedEntity(item);
   };
 
   return (
@@ -427,11 +624,11 @@ export const ComplianceVerification = () => {
               <option>All Time</option>
             </select>
           </div>
-          <Button variant="outline" onClick={refreshData} className="border-slate-200 dark:border-slate-800 h-10 px-4 rounded-xl font-bold gap-2">
+          <Button variant="outline" onClick={handleExport} className="border-slate-200 dark:border-slate-800 h-10 px-4 rounded-xl font-bold gap-2">
             <Download className="w-4 h-4" />
             Export
           </Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-4 rounded-xl shadow-lg shadow-emerald-500/20 gap-2">
+          <Button onClick={handleNewBatchVerify} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-4 rounded-xl shadow-lg shadow-emerald-500/20 gap-2">
             <Plus className="w-4 h-4" />
             New Batch Verify
           </Button>
@@ -449,10 +646,10 @@ export const ComplianceVerification = () => {
         />
         <StatCard 
           title="Total Verifications" 
-          value="1,247" 
-          badge="+12 today" 
+          value={String(verifications.length)} 
+          badge={`${verifications.filter((v) => v.status === "Pending").length} pending`}
           badgeColor="bg-emerald-100 text-emerald-700" 
-          progress={85}
+          progress={verifications.length ? Math.round((verifications.filter((v) => v.status === "Approved").length / verifications.length) * 100) : 0}
         />
         <StatCard 
           title="Pending KYC/KYB" 
@@ -505,7 +702,7 @@ export const ComplianceVerification = () => {
               { label: 'Upload Batch', icon: UploadCloud, color: 'text-blue-600 bg-blue-50' },
               { label: 'Audit Logs', icon: History, color: 'text-slate-600 bg-slate-50' },
             ].map((action, i) => (
-              <button key={i} className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-emerald-200 hover:shadow-md transition-all group">
+              <button key={i} type="button" onClick={() => handleQuickAction(action.label)} className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-emerald-200 hover:shadow-md transition-all group">
                 <div className={`w-10 h-10 rounded-full ${action.color} flex items-center justify-center mb-2 group-hover:scale-110 transition-transform`}>
                   <action.icon className="w-5 h-5" />
                 </div>
@@ -592,7 +789,14 @@ export const ComplianceVerification = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                <th className="px-6 py-4 w-12"><input type="checkbox" className="rounded" /></th>
+                <th className="px-6 py-4 w-12">
+                  <input
+                    type="checkbox"
+                    className="rounded"
+                    checked={filteredVerifications.length > 0 && selectedIds.size === filteredVerifications.length}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <th className="px-6 py-4 cursor-pointer hover:text-emerald-600 transition-colors" onClick={() => handleSort('name')}>
                   <div className="flex items-center gap-2">Entity <MoreHorizontal className="w-3 h-3 rotate-90" /></div>
                 </th>
@@ -621,14 +825,18 @@ export const ComplianceVerification = () => {
                   ))
                 ) : filteredVerifications.length > 0 ? (
                   filteredVerifications.map((item) => (
-                    <motion.tr 
+                    <tr 
                       key={item.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
                       className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all cursor-pointer"
                     >
-                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}><input type="checkbox" className="rounded" /></td>
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={selectedIds.has(item.id)}
+                          onChange={() => toggleSelect(item.id)}
+                        />
+                      </td>
                       <td className="px-6 py-4" onClick={() => setSelectedEntity(item)}>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9 border border-slate-100 dark:border-slate-800">
@@ -699,24 +907,42 @@ export const ComplianceVerification = () => {
                           {item.updated}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50" onClick={() => setSelectedEntity(item)}>
+                      <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50" onClick={() => setSelectedEntity(item)}>
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50" onClick={handleBulkApprove}>
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50" onClick={handleBulkApprove}>
                             <CheckCircle2 className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50" onClick={(e) => handleReject(item, e)}>
                             <XCircle className="w-4 h-4" />
                           </Button>
                           <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-800 mx-1" />
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400" onClick={(e) => e.stopPropagation()}>
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openModalWithTab(item, "history")}>
+                                <History className="w-4 h-4 mr-2" />
+                                View history
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => toast.info("Add note", { description: "Note saved for " + item.name })}>
+                                <FileText className="w-4 h-4 mr-2" />
+                                Add note
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { updateEntityStatus(item.id, "Flagged"); toast.info("Escalated", { description: item.name + " flagged for review." }); }}>
+                                <AlertTriangle className="w-4 h-4 mr-2" />
+                                Escalate
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
-                    </motion.tr>
+                    </tr>
                   ))
                 ) : (
                   <tr>
@@ -736,7 +962,7 @@ export const ComplianceVerification = () => {
         </div>
 
         <div className="p-6 bg-slate-50/50 dark:bg-slate-800/50 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between">
-          <p className="text-xs text-slate-500 font-medium">Showing <span className="text-slate-900 dark:text-white font-bold">{filteredVerifications.length}</span> of <span className="text-slate-900 dark:text-white font-bold">1,247</span> verifications</p>
+          <p className="text-xs text-slate-500 font-medium">Showing <span className="text-slate-900 dark:text-white font-bold">{filteredVerifications.length}</span> of <span className="text-slate-900 dark:text-white font-bold">{verifications.length}</span> verifications</p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg">1</Button>
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg">2</Button>
@@ -752,9 +978,37 @@ export const ComplianceVerification = () => {
 
       <DetailModal 
         isOpen={!!selectedEntity} 
-        onClose={() => setSelectedEntity(null)} 
-        entity={selectedEntity || INITIAL_VERIFICATIONS[0]} 
+        onClose={() => { setSelectedEntity(null); setSelectedModalTab("overview"); }} 
+        entity={selectedEntity || INITIAL_VERIFICATIONS[0]}
+        initialTab={selectedModalTab}
+        onApprove={(e) => updateEntityStatus(e.id, "Approved")}
+        onReject={(e) => updateEntityStatus(e.id, "Rejected")}
+        onScoreUpdate={updateEntityScore}
       />
+
+      <Dialog open={batchModalOpen} onOpenChange={setBatchModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Batch Verify</DialogTitle>
+            <DialogDescription>Upload a CSV with columns: name, type, country, countryName (or leave empty to add one demo entity).</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>CSV file (optional)</Label>
+              <Input
+                type="file"
+                accept=".csv"
+                onChange={(e) => setBatchFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">Without a file, one new pending verification will be added.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleBatchSubmit} className="bg-emerald-600 hover:bg-emerald-700">Add verification(s)</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

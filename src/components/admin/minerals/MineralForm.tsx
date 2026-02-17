@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { Mineral, initialMineralState } from "./types";
 import { Button } from "../../ui/button";
@@ -88,6 +88,9 @@ export function MineralForm({ initialData, onSubmit, onCancel, categoryOptions =
   const [customBadgeInput, setCustomBadgeInput] = useState("");
   const [editingBadge, setEditingBadge] = useState<string | null>(null);
   const [editingBadgeDraft, setEditingBadgeDraft] = useState("");
+  const [additionalImageUrlInput, setAdditionalImageUrlInput] = useState("");
+  const heroFileInputRef = useRef<HTMLInputElement | null>(null);
+  const additionalFilesInputRef = useRef<HTMLInputElement | null>(null);
   const tags = watch("tags");
 
   useEffect(() => {
@@ -328,21 +331,144 @@ export function MineralForm({ initialData, onSubmit, onCancel, categoryOptions =
             <div className="space-y-4">
               <div className="grid gap-2">
                 <Label>Primary Image (Hero)</Label>
-                <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-lg p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer">
-                  <Upload className="h-8 w-8 text-slate-400 mb-2" />
-                  <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">Click to upload hero image</p>
-                  <p className="text-xs text-slate-400 mt-1">PNG, JPG up to 10MB</p>
-                </div>
+                <Controller
+                  name="heroImage"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                          {...field}
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value.trim() || null)}
+                          placeholder="Paste image URL (https://...)"
+                          className="font-mono text-sm flex-1 min-w-[200px]"
+                        />
+                        <span className="text-xs text-muted-foreground">or</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          ref={heroFileInputRef}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file && file.type.startsWith("image/")) {
+                              const reader = new FileReader();
+                              reader.onload = () => field.onChange(reader.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                            e.target.value = "";
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => heroFileInputRef.current?.click()}
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Upload file
+                        </Button>
+                      </div>
+                      {field.value && (
+                        <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-w-xs aspect-video bg-slate-100 dark:bg-slate-800">
+                          <img src={field.value} alt="Hero preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                />
+                <p className="text-xs text-muted-foreground">Paste an image URL or upload a file (PNG, JPG).</p>
               </div>
               <div className="grid gap-2">
                 <Label>Additional Images</Label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-md flex items-center justify-center border border-slate-200 dark:border-slate-700">
-                      <Plus className="h-4 w-4 text-slate-400" />
+                <Controller
+                  name="additionalImages"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="space-y-2">
+                      <div className="flex gap-2 flex-wrap">
+                        {(field.value || []).map((url, i) => (
+                          <div key={i} className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-w-[140px]">
+                            <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 shrink-0">
+                              <img src={url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                            </div>
+                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => field.onChange((field.value || []).filter((_, j) => j !== i))} aria-label="Remove">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <div className="flex gap-2 items-center flex-wrap">
+                          <Input
+                            placeholder="Paste URL (https://...)"
+                            className="w-[180px] font-mono text-xs"
+                            value={additionalImageUrlInput}
+                            onChange={(e) => setAdditionalImageUrlInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                const v = additionalImageUrlInput.trim();
+                                if (v) {
+                                  field.onChange([...(field.value || []), v]);
+                                  setAdditionalImageUrlInput("");
+                                }
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const v = additionalImageUrlInput.trim();
+                              if (v) {
+                                field.onChange([...(field.value || []), v]);
+                                setAdditionalImageUrlInput("");
+                              }
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add URL
+                          </Button>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            ref={additionalFilesInputRef}
+                            onChange={(e) => {
+                              const files = Array.from(e.target.files || []).filter((f) => f.type.startsWith("image/"));
+                              if (!files.length) {
+                                e.target.value = "";
+                                return;
+                              }
+                              const existing = field.value || [];
+                              const results: string[] = [];
+                              let done = 0;
+                              files.forEach((file) => {
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  results.push(reader.result as string);
+                                  done++;
+                                  if (done === files.length) {
+                                    field.onChange([...existing, ...results]);
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              });
+                              e.target.value = "";
+                            }}
+                          />
+                          <Button type="button" variant="outline" size="sm" onClick={() => additionalFilesInputRef.current?.click()}>
+                            <Upload className="h-4 w-4 mr-1" />
+                            Upload
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                />
+                <p className="text-xs text-muted-foreground">Add image URLs or upload files (optional).</p>
               </div>
             </div>
           </Section>

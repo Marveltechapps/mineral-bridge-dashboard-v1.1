@@ -41,6 +41,7 @@ export const MODULE_ACCESS: Record<string, Partial<Record<AdminRole, ModuleAcces
   insurance:            { ceo: "full", operations_manager: "full", support_agent: "none", data_clerk: "none" },
   settings:             { ceo: "full", operations_manager: "view", support_agent: "view", data_clerk: "none" },
   "audit-log":          { ceo: "full", operations_manager: "view", support_agent: "view", data_clerk: "view" },
+  "call-history":      { ceo: "full", operations_manager: "full", support_agent: "full", data_clerk: "view" },
   help:                 { ceo: "full", operations_manager: "full", support_agent: "full", data_clerk: "full" },
   profile:              { ceo: "full", operations_manager: "full", support_agent: "full", data_clerk: "full" },
   notifications:        { ceo: "full", operations_manager: "full", support_agent: "full", data_clerk: "full" },

@@ -44,7 +44,8 @@ import {
   Box,
   User,
   X,
-  ArrowLeft
+  ArrowLeft,
+  Send
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "../ui/card";
 import { Button } from "../ui/button";
@@ -408,7 +409,25 @@ export function PartnerManagement({ onNavigateToCompliance, onNavigateToLogistic
       ? docs.map((d) => (d === target.currentValue ? newName : d))
       : [...docs, newName];
     dispatch({ type: "UPDATE_PARTNER_THIRD_PARTY", payload: { ...entry, uploadedDocuments: updated } });
-    toast.success("New version uploaded", { description: `${target.label}: ${newName}` });
+    const isCertificate = /final certificate|certificate/i.test(target.label);
+    const isLabReport = /lab report/i.test(target.label);
+    if ((isCertificate || isLabReport) && entry.orderId) {
+      const order = [...(state.buyOrders ?? []), ...(state.sellOrders ?? [])].find((o) => o.id === entry.orderId);
+      if (order) {
+        const sentType = isCertificate ? ("testing_certificate" as const) : ("lab_report" as const);
+        const label = isCertificate ? "Final Certificate" : "Lab Report";
+        const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) + " • " + new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+        const newSent = { type: sentType, label: `${label}: ${newName}`, date: dateStr, channel: "Dashboard", detail: `Uploaded in Testing & Certification for order ${entry.orderId}` };
+        const existing = order.sentToUser ?? [];
+        const updatedSent = [...existing, newSent];
+        dispatch({ type: "UPDATE_ORDER", payload: { ...order, sentToUser: updatedSent } });
+        toast.success("Document uploaded and sent to end user", { description: `${target.label} will appear in the app for order ${entry.orderId}.` });
+      } else {
+        toast.success("New version uploaded", { description: `${target.label}: ${newName}. Link order ${entry.orderId} in Orders to send to user.` });
+      }
+    } else {
+      toast.success("New version uploaded", { description: `${target.label}: ${newName}` });
+    }
     e.target.value = "";
   };
   const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2350,6 +2369,52 @@ export function PartnerManagement({ onNavigateToCompliance, onNavigateToLogistic
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Card: Send to end user — certificate / lab report visible in app */}
+                {order && (
+                  <Card className="border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 rounded-2xl overflow-hidden">
+                    <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 px-6 py-5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                          <Send className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base font-black text-slate-900 dark:text-white">Send to end user</CardTitle>
+                          <CardDescription className="text-xs text-slate-500 dark:text-slate-400">Notify the buyer/seller in the app. Certificate and lab report will appear under &quot;Links & details sent to you&quot; in their order.</CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-6 py-5 flex flex-wrap gap-2">
+                      {(() => {
+                        const docs = entry.uploadedDocuments ?? [];
+                        const hasCert = activeTesting?.certificatePdf ?? docs.some((d) => /certificate|cert/i.test(d));
+                        const hasLab = activeTesting?.labReportPdf ?? docs.some((d) => /lab|report/i.test(d));
+                        const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) + " • " + new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+                        const sendToUser = (type: "testing_certificate" | "lab_report", label: string) => {
+                          const existing = order.sentToUser ?? [];
+                          if (existing.some((s) => s.type === type && s.date === dateStr)) {
+                            toast.info("Already sent", { description: `${label} was already sent to the end user.` });
+                            return;
+                          }
+                          const newSent = { type, label: `${label} — Testing & Certification`, date: dateStr, channel: "Dashboard", detail: `Sent for order ${entry.orderId}` };
+                          dispatch({ type: "UPDATE_ORDER", payload: { ...order, sentToUser: [...existing, newSent] } });
+                          toast.success("Sent to end user", { description: `${label} will appear in the app for this order.` });
+                        };
+                        return (
+                          <>
+                            <Button size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={!hasCert} onClick={() => sendToUser("testing_certificate", "Final Certificate")}>
+                              <Send className="w-4 h-4" /> Send certificate to end user
+                            </Button>
+                            <Button size="sm" variant="outline" className="rounded-xl gap-2" disabled={!hasLab} onClick={() => sendToUser("lab_report", "Lab Report")}>
+                              <Send className="w-4 h-4" /> Send lab report to end user
+                            </Button>
+                            {!hasCert && !hasLab && <span className="text-xs text-slate-500 dark:text-slate-400 self-center">Upload a certificate or lab report in Documents uploaded below first.</span>}
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Card: Documents, payments & logistics (subsection) */}
                 <Card className="border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 rounded-2xl overflow-hidden">

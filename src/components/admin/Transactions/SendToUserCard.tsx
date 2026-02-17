@@ -20,10 +20,12 @@ import { QRGenerator } from "../../ui/QRGenerator";
 import type { Order, SentToUser, DashboardAction } from "../../../store/dashboardStore";
 import { toast } from "sonner";
 
-const SENT_TYPES: SentToUser["type"][] = ["qr_or_bank", "transport_link", "sample_pickup_link", "lc_credit"];
+const SENT_TYPES: SentToUser["type"][] = ["qr_or_bank", "transport_link", "sample_pickup_link", "lc_credit", "testing_certificate", "lab_report"];
 const SENT_TYPE_LABELS: Record<SentToUser["type"], string> = {
   qr_or_bank: "Bank details / QR code",
   transport_link: "Logistics / transport link",
+  testing_certificate: "Testing certificate",
+  lab_report: "Lab report",
   sample_pickup_link: "Sample pickup link",
   lc_credit: "LC / credit",
 };

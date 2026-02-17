@@ -48,7 +48,7 @@ export function Stepper6({ activeStep, onStepChange }: Stepper6Props) {
                 >
                   {isCompleted ? "✓" : stepNum}
                 </button>
-                <div className="text-xs font-medium mt-2 text-center px-0.5 leading-tight">
+                <div className="text-xs font-medium mt-2 text-center px-0.5 leading-tight text-slate-700 dark:text-slate-200">
                   {label}
                 </div>
               </div>

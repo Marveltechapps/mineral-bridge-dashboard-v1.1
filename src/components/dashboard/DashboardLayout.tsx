@@ -33,7 +33,8 @@ import {
   FileText,
   Gavel,
   Search,
-  User
+  User,
+  Phone
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -74,6 +75,7 @@ const menuItems = [
     ]
   },
   { icon: FileText, label: "Audit & Activity Log", view: "audit-log" },
+  { icon: Phone, label: "Call history", view: "call-history" },
   { icon: Settings, label: "Settings", view: "settings" },
   { icon: HelpCircle, label: "Help & Documentation", view: "help" },
 ];
@@ -310,7 +312,7 @@ export function DashboardLayout({ children, currentView = "dashboard", onViewCha
             </div>
           </header>
           
-          <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950">
+          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-slate-50 dark:bg-slate-950">
             {children}
           </main>
         </div>

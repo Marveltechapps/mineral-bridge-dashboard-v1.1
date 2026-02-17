@@ -23,6 +23,8 @@ import {
 } from "../ui/alert-dialog";
 import { useDashboardStore, getRegistryUserName } from "../../store/dashboardStore";
 import type { Order, Transaction } from "../../store/dashboardStore";
+import type { FinancialFlowStep } from "../../lib/financialApi";
+import { FLOW_STEPS } from "../../lib/financialApi";
 import { Stepper6 } from "./orders/Stepper6";
 import { BuyFlow6 } from "./orders/BuyFlow6";
 import { SellFlow6 } from "./orders/SellFlow6";
@@ -37,9 +39,11 @@ export interface OrderTransactionDetailPageProps {
   onBack: () => void;
   /** Switch to full order detail (Overview, Communication, Testing, etc.). Back there goes to Buy/Sell Management. */
   onOpenFullOrderDetail?: () => void;
+  /** Open the full 6-step flow in Financial & Reporting at the given transaction and step. */
+  onOpenFinancialFlow?: (transactionId: string, step: FinancialFlowStep) => void;
 }
 
-export function OrderTransactionDetailPage({ orderId, type, onBack, onOpenFullOrderDetail }: OrderTransactionDetailPageProps) {
+export function OrderTransactionDetailPage({ orderId, type, onBack, onOpenFullOrderDetail, onOpenFinancialFlow }: OrderTransactionDetailPageProps) {
   const { state, dispatch } = useDashboardStore();
   const [orderForReserve, setOrderForReserve] = useState<Order | null>(null);
   const [releaseConfirmTx, setReleaseConfirmTx] = useState<Transaction | null>(null);
@@ -239,6 +243,19 @@ export function OrderTransactionDetailPage({ orderId, type, onBack, onOpenFullOr
       </Card>
 
       <Stepper6 activeStep={globalStep} onStepChange={(s) => setActiveStep6(s)} />
+        {relatedTx && onOpenFinancialFlow && (
+          <div className="flex items-center gap-2 -mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-[#A855F7] border-[#A855F7]/50 hover:bg-[#A855F7]/10"
+              onClick={() => onOpenFinancialFlow(relatedTx.id, (FLOW_STEPS[Math.min(globalStep, 6) - 1]?.id ?? "send-qr") as FinancialFlowStep)}
+            >
+              <ExternalLink className="h-4 w-4 mr-1.5" />
+              Open in Financial flow (Send QR → … → Release)
+            </Button>
+          </div>
+        )}
 
       <Card className="border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
         <CardHeader className="pb-3 pt-5 px-6 border-b border-slate-100 dark:border-slate-800">

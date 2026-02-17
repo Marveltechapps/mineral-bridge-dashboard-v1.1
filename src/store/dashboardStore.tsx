@@ -46,7 +46,7 @@ export interface AccessRequest {
 }
 
 export interface SentToUser {
-  type: "transport_link" | "qr_or_bank" | "sample_pickup_link" | "lc_credit";
+  type: "transport_link" | "qr_or_bank" | "sample_pickup_link" | "lc_credit" | "testing_certificate" | "lab_report";
   label: string;
   date: string;
   channel: string;
@@ -416,6 +416,24 @@ export interface AppActivity {
   metadata?: Record<string, string>;
 }
 
+/** Call/contact history entry keyed by phone number for "history for this number" views. */
+export interface CallHistoryEntry {
+  id: string;
+  /** Display phone number (e.g. +233 24 555 0192). */
+  phoneNumber: string;
+  /** Normalized for matching (digits only). */
+  normalizedPhone: string;
+  orderId?: string;
+  userId?: string;
+  /** Human-readable context (e.g. order id or user name). */
+  contextLabel?: string;
+  at: string;
+  note?: string;
+  admin?: string;
+  contactMethod: "Mobile" | "Email";
+  type: "call" | "email";
+}
+
 export interface DashboardState {
   registryUsers: RegistryUserRow[];
   accessRequests: AccessRequest[];
@@ -448,6 +466,8 @@ export interface DashboardState {
   customCategories: string[];
   /** Custom sell submission categories (e.g. in addition to Raw, Semi-Processed, Processed). */
   customSellCategories: string[];
+  /** Call/contact history by phone number (all contacts to a number across orders). */
+  callHistory: CallHistoryEntry[];
 }
 
 const DEFAULT_USER_ID = "MB-USR-4412-S";
@@ -871,7 +891,8 @@ export type DashboardAction =
   | { type: "ADD_ARTISANAL_DOCUMENT_REQUEST"; payload: { userId: string; entry: import("../types/userDetails").ArtisanalDocumentRequest } }
   | { type: "UPDATE_ARTISANAL_ASSET_REQUEST"; payload: { userId: string; requestId: string; status: "approved" | "fulfilled" | "rejected"; adminNote?: string } }
   | { type: "ADD_CUSTOM_CATEGORY"; payload: string }
-  | { type: "ADD_CUSTOM_SELL_CATEGORY"; payload: string };
+  | { type: "ADD_CUSTOM_SELL_CATEGORY"; payload: string }
+  | { type: "ADD_CALL_HISTORY"; payload: CallHistoryEntry };
 
 function dashboardReducer(state: DashboardState, action: DashboardAction): DashboardState {
   switch (action.type) {
@@ -1000,6 +1021,8 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
       if (!name || state.customSellCategories.includes(name)) return state;
       return { ...state, customSellCategories: [...state.customSellCategories, name] };
     }
+    case "ADD_CALL_HISTORY":
+      return { ...state, callHistory: [action.payload, ...state.callHistory] };
     case "ADD_MINERAL_SUBMISSION":
       return { ...state, mineralSubmissions: [...state.mineralSubmissions, action.payload] };
     case "UPDATE_MINERAL_SUBMISSION": {
@@ -1183,6 +1206,11 @@ const initialState: DashboardState = {
   ],
   customCategories: [],
   customSellCategories: [],
+  callHistory: [
+    { id: "ch-1", phoneNumber: "+233 24 555 0192", normalizedPhone: "233245550192", orderId: "B-ORD-5489", userId: DEFAULT_USER_ID, contextLabel: "B-ORD-5489 (Samuel Osei)", at: new Date(Date.now() - 86400000).toISOString(), note: "Initial call – confirmed quantity and delivery.", admin: "S. Miller", contactMethod: "Mobile", type: "call" },
+    { id: "ch-2", phoneNumber: "+233 24 555 0192", normalizedPhone: "233245550192", orderId: "B-ORD-5489", userId: DEFAULT_USER_ID, contextLabel: "B-ORD-5489", at: new Date(Date.now() - 43200000).toISOString(), note: "Follow-up on payment terms.", admin: "S. Miller", contactMethod: "Email", type: "email" },
+    { id: "ch-3", phoneNumber: "+233 24 111 2233", normalizedPhone: "233241112233", orderId: "S-ORD-8821", userId: "MB-USR-8821-B", contextLabel: "S-ORD-8821 (Kwesi Mensah)", at: new Date(Date.now() - 3600000).toISOString(), note: "Callback – sample pickup arranged.", admin: "Admin", contactMethod: "Mobile", type: "call" },
+  ],
 };
 
 const DashboardStoreContext = createContext<{ state: DashboardState; dispatch: React.Dispatch<DashboardAction> } | null>(null);
@@ -1257,6 +1285,18 @@ export function getLogisticsDetailsForOrder(state: DashboardState, orderId: stri
 /** 3rd party (testing & certification) details for an order. Edits in Partners → 3rd Party Details are synced to logisticsDetails so they appear in Order, Financial, and Transaction views. */
 export function getPartnerThirdPartyForOrder(state: DashboardState, orderId: string): PartnerThirdPartyEntry | undefined {
   return state.partnerThirdPartyDetails.find((e) => e.orderId === orderId);
+}
+
+/** Normalize phone for matching (digits only). */
+export function normalizePhone(phone: string): string {
+  return (phone || "").replace(/\D/g, "");
+}
+
+/** Get call history for a specific phone number (all contacts to that number). */
+export function getCallHistoryForPhone(state: DashboardState, phone: string): CallHistoryEntry[] {
+  const norm = normalizePhone(phone);
+  if (!norm) return [];
+  return state.callHistory.filter((e) => e.normalizedPhone === norm);
 }
 
 export function useDashboardStats() {

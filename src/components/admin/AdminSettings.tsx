@@ -14,7 +14,12 @@ import {
   Check,
   Eye,
   Edit,
-  FileText
+  FileText,
+  CreditCard,
+  Mail,
+  MessageSquare,
+  BarChart2,
+  ExternalLink
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -54,8 +59,40 @@ import { useDashboardStore } from "../../store/dashboardStore";
 import { useRoleOptional } from "../../contexts/RoleContext";
 import type { StoredAdmin } from "../../contexts/RoleContext";
 import { ADMIN_ROLES } from "../../lib/permissions";
+import { toast } from "sonner";
+import { useEffect } from "react";
 
 const ADMIN_ROLE_LABELS = ADMIN_ROLES.map((r) => ({ value: r.value, label: r.label }));
+
+const INTEGRATIONS_STORAGE_KEY = "mineral_bridge_integrations";
+
+const DEFAULT_INTEGRATIONS = [
+  { id: "stripe", name: "Stripe Payments", connected: false, lastSync: "-", icon: CreditCard },
+  { id: "sendgrid", name: "SendGrid Email", connected: true, lastSync: "1 day ago", icon: Mail },
+  { id: "slack", name: "Slack Notifications", connected: false, lastSync: "-", icon: MessageSquare },
+  { id: "analytics", name: "Google Analytics", connected: true, lastSync: "5 mins ago", icon: BarChart2 },
+];
+
+function loadIntegrations(): typeof DEFAULT_INTEGRATIONS {
+  try {
+    const raw = localStorage.getItem(INTEGRATIONS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length === 4) {
+        return parsed.map((p: { id: string; name: string; connected: boolean; lastSync: string }) => ({
+          ...p,
+          icon: DEFAULT_INTEGRATIONS.find((d) => d.id === p.id)?.icon ?? Database,
+        }));
+      }
+    }
+  } catch (_) {}
+  return DEFAULT_INTEGRATIONS;
+}
+
+function saveIntegrations(integrations: typeof DEFAULT_INTEGRATIONS) {
+  const toSave = integrations.map(({ icon: _, ...rest }) => rest);
+  localStorage.setItem(INTEGRATIONS_STORAGE_KEY, JSON.stringify(toSave));
+}
 
 export function AdminSettings() {
   const { state } = useDashboardStore();
@@ -98,22 +135,42 @@ export function AdminSettings() {
     marketing: false
   });
 
-  // Integrations State
-  const [integrations, setIntegrations] = useState([
-    { id: "stripe", name: "Stripe Payments", connected: true, lastSync: "2 hours ago" },
-    { id: "sendgrid", name: "SendGrid Email", connected: true, lastSync: "1 day ago" },
-    { id: "slack", name: "Slack Notifications", connected: false, lastSync: "-" },
-    { id: "analytics", name: "Google Analytics", connected: true, lastSync: "5 mins ago" },
-  ]);
+  // Integrations State (persisted in localStorage)
+  const [integrations, setIntegrations] = useState(() => loadIntegrations());
+  const [configuringId, setConfiguringId] = useState<string | null>(null);
+  const [configForm, setConfigForm] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    saveIntegrations(integrations);
+  }, [integrations]);
 
   const toggleNotification = (key: keyof typeof notifications) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const toggleIntegration = (id: string) => {
-    setIntegrations(integrations.map(int => 
-      int.id === id ? { ...int, connected: !int.connected } : int
+    setIntegrations(integrations.map(int =>
+      int.id === id
+        ? { ...int, connected: !int.connected, lastSync: int.connected ? "-" : int.lastSync }
+        : int
     ));
+  };
+
+  const openConfigure = (id: string) => {
+    setConfiguringId(id);
+    setConfigForm({});
+  };
+
+  const saveIntegrationConfig = () => {
+    if (!configuringId) return;
+    setIntegrations(integrations.map(int =>
+      int.id === configuringId
+        ? { ...int, connected: true, lastSync: "Just now" }
+        : int
+    ));
+    toast.success("Integration connected", { description: "Settings saved. In production, these would be sent to your backend." });
+    setConfiguringId(null);
+    setConfigForm({});
   };
 
   const removeAdmin = (id: string) => {
@@ -767,33 +824,127 @@ export function AdminSettings() {
              <Card className="border-none shadow-sm">
                <CardHeader>
                  <CardTitle>Integrations</CardTitle>
-                 <CardDescription>Connect with external services.</CardDescription>
+                 <CardDescription>Connect with external services. Enter placeholders below; in production these would be sent to your backend.</CardDescription>
                </CardHeader>
                <CardContent>
                  <div className="grid gap-4">
-                   {integrations.map((app) => (
-                     <div key={app.id} className="flex items-center justify-between p-4 border rounded-lg">
-                       <div className="flex items-center gap-4">
-                         <div className={`p-2 rounded-lg ${app.connected ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-                           <Database className="w-5 h-5" />
+                   {integrations.map((app) => {
+                     const Icon = app.icon ?? Database;
+                     return (
+                       <div key={app.id} className="flex items-center justify-between p-4 border rounded-lg">
+                         <div className="flex items-center gap-4">
+                           <div className={`p-2 rounded-lg ${app.connected ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
+                             <Icon className="w-5 h-5" />
+                           </div>
+                           <div>
+                             <p className="font-medium">{app.name}</p>
+                             <p className="text-xs text-muted-foreground">
+                               {app.connected ? `Synced: ${app.lastSync}` : "Not connected"}
+                             </p>
+                           </div>
                          </div>
-                         <div>
-                           <p className="font-medium">{app.name}</p>
-                           <p className="text-xs text-muted-foreground">
-                             {app.connected ? `Synced: ${app.lastSync}` : 'Not connected'}
-                           </p>
+                         <div className="flex items-center gap-2">
+                           <Button variant="outline" size="sm" onClick={() => openConfigure(app.id)}>
+                             {app.connected ? "Configure" : "Connect"}
+                           </Button>
+                           <Switch
+                             checked={app.connected}
+                             onCheckedChange={() => toggleIntegration(app.id)}
+                           />
                          </div>
                        </div>
-                       <Switch 
-                         checked={app.connected} 
-                         onCheckedChange={() => toggleIntegration(app.id)}
-                       />
-                     </div>
-                   ))}
+                     );
+                   })}
                  </div>
+                 <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1">
+                   <ExternalLink className="h-3 w-3" />
+                   Frontend-only: credentials are not sent anywhere. Wire to your backend when ready.
+                 </p>
                </CardContent>
              </Card>
           )}
+
+          {/* Configure Integration Dialog */}
+          <Dialog open={!!configuringId} onOpenChange={(open) => !open && setConfiguringId(null)}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  {configuringId === "stripe" && "Connect Stripe Payments"}
+                  {configuringId === "sendgrid" && "Connect SendGrid Email"}
+                  {configuringId === "slack" && "Connect Slack Notifications"}
+                  {configuringId === "analytics" && "Connect Google Analytics"}
+                </DialogTitle>
+                <DialogDescription>
+                  Enter your credentials (frontend demo only; not sent to any server). In production, use environment variables or a secure backend.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                {configuringId === "stripe" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Publishable key</Label>
+                      <Input
+                        placeholder="pk_live_..."
+                        value={configForm.publishableKey ?? ""}
+                        onChange={(e) => setConfigForm((f) => ({ ...f, publishableKey: e.target.value }))}
+                        type="password"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Secret key</Label>
+                      <Input
+                        placeholder="sk_live_..."
+                        value={configForm.secretKey ?? ""}
+                        onChange={(e) => setConfigForm((f) => ({ ...f, secretKey: e.target.value }))}
+                        type="password"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </>
+                )}
+                {configuringId === "sendgrid" && (
+                  <div className="space-y-2">
+                    <Label>SendGrid API key</Label>
+                    <Input
+                      placeholder="SG...."
+                      value={configForm.apiKey ?? ""}
+                      onChange={(e) => setConfigForm((f) => ({ ...f, apiKey: e.target.value }))}
+                      type="password"
+                      autoComplete="off"
+                    />
+                  </div>
+                )}
+                {configuringId === "slack" && (
+                  <div className="space-y-2">
+                    <Label>Slack Incoming Webhook URL</Label>
+                    <Input
+                      placeholder="https://hooks.slack.com/services/..."
+                      value={configForm.webhookUrl ?? ""}
+                      onChange={(e) => setConfigForm((f) => ({ ...f, webhookUrl: e.target.value }))}
+                      type="url"
+                      autoComplete="off"
+                    />
+                  </div>
+                )}
+                {configuringId === "analytics" && (
+                  <div className="space-y-2">
+                    <Label>GA4 Measurement ID</Label>
+                    <Input
+                      placeholder="G-XXXXXXXXXX"
+                      value={configForm.measurementId ?? ""}
+                      onChange={(e) => setConfigForm((f) => ({ ...f, measurementId: e.target.value }))}
+                      autoComplete="off"
+                    />
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setConfiguringId(null)}>Cancel</Button>
+                <Button onClick={saveIntegrationConfig} className="bg-emerald-600 hover:bg-emerald-700">Save & connect</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {activeTab === "notifications" && (
              <Card className="border-none shadow-sm">

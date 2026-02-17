@@ -19,7 +19,8 @@ import {
   ExternalLink,
   Plus,
   Upload,
-  FileText
+  FileText,
+  Phone
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -50,6 +51,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "../ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,8 +63,8 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { useAllOrders, useDashboardStore, getRegistryUserName, getOrderIsInternational, getTransactionIsInternational } from "../../store/dashboardStore";
-import type { Order, Transaction } from "../../store/dashboardStore";
+import { useAllOrders, useDashboardStore, getRegistryUserName, getOrderIsInternational, getTransactionIsInternational, normalizePhone, getCallHistoryForPhone } from "../../store/dashboardStore";
+import type { Order, Transaction, CallHistoryEntry } from "../../store/dashboardStore";
 import { toast } from "sonner";
 import { Stepper6 } from "./orders/Stepper6";
 import { OrderTable } from "./orders/OrderTable";
@@ -98,6 +100,8 @@ export interface OrderTransactionManagementProps {
   onNavigateToFinance?: () => void;
   /** Navigate to Logistics (e.g. Track). */
   onNavigateToLogistics?: (orderId?: string) => void;
+  /** Navigate to Financial Transactions (full 6-step flow: Send QR → … → Release). */
+  onNavigateToFinanceTransactions?: () => void;
 }
 
 const SHEET_TABS = ["overview", "flow", "communication", "testing", "sent", "transaction"] as const;
@@ -110,6 +114,7 @@ export function OrderTransactionManagement({
   onNavigateToEnquiries,
   onNavigateToFinance,
   onNavigateToLogistics,
+  onNavigateToFinanceTransactions,
 }: OrderTransactionManagementProps = {}) {
   const { state, dispatch } = useDashboardStore();
   const [searchTerm, setSearchTerm] = useState("");
@@ -128,6 +133,9 @@ export function OrderTransactionManagement({
   const [methodFilter, setMethodFilter] = useState<"all" | "Bank Transfer" | "Wise" | "Blockchain Settlement">("all");
   const [newTestingLabel, setNewTestingLabel] = useState("");
   const [addTestingOpen, setAddTestingOpen] = useState(false);
+  const [logCallOpen, setLogCallOpen] = useState(false);
+  const [logCallNote, setLogCallNote] = useState("");
+  const [logCallAdmin, setLogCallAdmin] = useState("Admin");
   const allOrders = useAllOrders();
   const transactions = state.transactions;
   // Only open sheet when initialTransactionId is set/changed — do NOT depend on state.transactions/allOrders
@@ -288,6 +296,14 @@ export function OrderTransactionManagement({
       </div>
 
       <Stepper6 activeStep={activeStep6} onStepChange={setActiveStep6} />
+        {onNavigateToFinanceTransactions && (
+          <p className="text-sm text-muted-foreground -mt-2 flex items-center gap-2">
+            Run the full 6-step flow (Send QR → Call Buyer → … → Release) in
+            <Button variant="link" size="sm" className="h-auto p-0 text-[#A855F7] font-medium" onClick={onNavigateToFinanceTransactions}>
+              Financial & Reporting → Transactions
+            </Button>
+          </p>
+        )}
 
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "orders" | "settlements")} className="w-full">
         <TabsList className="h-10 bg-slate-100 dark:bg-slate-800 p-1 gap-1 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -709,10 +725,49 @@ export function OrderTransactionManagement({
                     </TabsContent>
 
                     <TabsContent value="communication" className="mt-0 space-y-6">
+                      {(() => {
+                        const orderPhone = orderForView.contactInfo?.phone ?? state.registryUsers.find((u) => u.id === orderForView.userId)?.phone;
+                        const callHistoryForNumber = orderPhone ? getCallHistoryForPhone(state, orderPhone) : [];
+                        return orderPhone && callHistoryForNumber.length > 0 ? (
+                          <Card className="border-none shadow-sm">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <Phone className="h-4 w-4 text-emerald-600" />
+                                Call history for this number ({orderPhone})
+                              </CardTitle>
+                              <p className="text-xs text-muted-foreground">All contacts to this phone across orders.</p>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="space-y-2">
+                                {callHistoryForNumber.map((ch) => (
+                                  <li key={ch.id} className="flex justify-between items-start gap-4 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0 text-sm">
+                                    <div>
+                                      <p className="font-medium capitalize">{ch.type}</p>
+                                      {ch.contextLabel && <p className="text-xs text-muted-foreground">{ch.contextLabel}</p>}
+                                      {ch.note && <p className="text-xs text-muted-foreground mt-0.5">{ch.note}</p>}
+                                    </div>
+                                    <div className="text-right shrink-0 text-xs text-muted-foreground">
+                                      {ch.admin} · {new Date(ch.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
+                        ) : null;
+                      })()}
                       <Card className="border-none shadow-sm">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base">Communication log</CardTitle>
-                          <p className="text-xs text-muted-foreground">Events and admin actions for this order.</p>
+                        <CardHeader className="pb-2 flex flex-row items-center justify-between gap-4">
+                          <div>
+                            <CardTitle className="text-base">Communication log</CardTitle>
+                            <p className="text-xs text-muted-foreground">Events and admin actions for this order.</p>
+                          </div>
+                          {orderForView.contactInfo?.phone ?? state.registryUsers.find((u) => u.id === orderForView.userId)?.phone ? (
+                            <Button size="sm" variant="outline" className="gap-2" onClick={() => { setLogCallNote(""); setLogCallAdmin("Admin"); setLogCallOpen(true); }}>
+                              <Phone className="h-4 w-4" />
+                              Log call
+                            </Button>
+                          ) : null}
                         </CardHeader>
                         <CardContent>
                           {orderForView.commLog?.length ? (
@@ -951,6 +1006,61 @@ export function OrderTransactionManagement({
               }}
             >
               Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={logCallOpen} onOpenChange={setLogCallOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Log call</DialogTitle>
+            <DialogDescription>Record that you called this order&apos;s contact. Saved to call history (by number) and to this order&apos;s communication log.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="log-call-note-sheet">Note (optional)</Label>
+              <Textarea id="log-call-note-sheet" value={logCallNote} onChange={(e) => setLogCallNote(e.target.value)} placeholder="e.g. Discussed delivery date" rows={2} className="resize-none mt-2" />
+            </div>
+            <div>
+              <Label htmlFor="log-call-admin-sheet">Admin</Label>
+              <Input id="log-call-admin-sheet" value={logCallAdmin} onChange={(e) => setLogCallAdmin(e.target.value)} placeholder="Admin" className="mt-2" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogCallOpen(false)}>Cancel</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => {
+                if (!orderForView) return;
+                const phone = orderForView.contactInfo?.phone ?? state.registryUsers.find((u) => u.id === orderForView.userId)?.phone;
+                if (!phone?.trim()) {
+                  toast.error("No phone number for this order.");
+                  return;
+                }
+                const date = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+                const commEntry = { event: "Call logged", admin: logCallAdmin.trim() || "Admin", date, note: logCallNote.trim() || undefined, contactMethod: "Mobile" as const };
+                const chEntry: CallHistoryEntry = {
+                  id: `ch-${Date.now()}`,
+                  phoneNumber: phone.trim(),
+                  normalizedPhone: normalizePhone(phone),
+                  orderId: orderForView.id,
+                  userId: orderForView.userId,
+                  contextLabel: `${orderForView.id} (${orderForView.contactInfo?.name ?? getRegistryUserName(state.registryUsers, orderForView.userId) ?? "—"})`,
+                  at: new Date().toISOString(),
+                  note: logCallNote.trim() || undefined,
+                  admin: logCallAdmin.trim() || "Admin",
+                  contactMethod: "Mobile",
+                  type: "call",
+                };
+                dispatch({ type: "ADD_CALL_HISTORY", payload: chEntry });
+                dispatch({ type: "UPDATE_ORDER", payload: { ...orderForView, commLog: [...(orderForView.commLog ?? []), commEntry] } });
+                toast.success("Call logged");
+                setLogCallOpen(false);
+                setLogCallNote("");
+              }}
+            >
+              Log call
             </Button>
           </DialogFooter>
         </DialogContent>

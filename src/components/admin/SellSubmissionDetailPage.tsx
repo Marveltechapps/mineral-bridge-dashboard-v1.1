@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -33,6 +33,7 @@ import {
   Plus,
   User,
   ExternalLink,
+  Upload,
 } from "lucide-react";
 import {
   Table,
@@ -89,6 +90,7 @@ export function SellSubmissionDetailPage({ submissionId, onBack, onNavigateToAud
     return base;
   }, [state.customSellCategories, submission?.mineralCategory]);
   const [newPhotoUrl, setNewPhotoUrl] = useState("");
+  const photoFileInputRef = useRef<HTMLInputElement>(null);
   const [newAuditAction, setNewAuditAction] = useState("");
   const [newAuditActor, setNewAuditActor] = useState<"System" | "Admin" | "Seller">("Admin");
 
@@ -418,7 +420,7 @@ export function SellSubmissionDetailPage({ submissionId, onBack, onNavigateToAud
           </Card>
         </section>
 
-        {/* 2. Photo Evidence – add via URL */}
+        {/* 2. Photo Evidence – add via URL or upload */}
         <section className="space-y-3">
           <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
             <Camera className="h-5 w-5 text-purple-500" />
@@ -428,33 +430,80 @@ export function SellSubmissionDetailPage({ submissionId, onBack, onNavigateToAud
             <CardContent className="p-4 space-y-4">
               <div className="flex gap-2 flex-wrap items-end">
                 <div className="flex-1 min-w-[200px] space-y-2">
-                  <Label className="text-xs text-muted-foreground">Add photo (image URL)</Label>
-                  <Input
-                    value={newPhotoUrl}
-                    onChange={(e) => setNewPhotoUrl(e.target.value)}
-                    placeholder="https://..."
-                  />
+                  <Label className="text-xs text-muted-foreground">Add photo: paste image URL or upload file</Label>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <Input
+                      value={newPhotoUrl}
+                      onChange={(e) => setNewPhotoUrl(e.target.value)}
+                      placeholder="https://... (image URL)"
+                      className="font-mono text-sm flex-1 min-w-[180px]"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (!newPhotoUrl.trim()) return;
+                        const newPhoto = {
+                          id: `photo-${Date.now()}`,
+                          url: newPhotoUrl.trim(),
+                          timestamp: new Date(),
+                          qualityScore: 0,
+                          flags: [],
+                        };
+                        handleUpdateSubmission({ photos: [...selectedSubmission.photos, newPhoto] });
+                        setNewPhotoUrl("");
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add URL
+                    </Button>
+                    <span className="text-xs text-muted-foreground">or</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      ref={photoFileInputRef}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []).filter((f) => f.type.startsWith("image/"));
+                        if (!files.length) {
+                          e.target.value = "";
+                          return;
+                        }
+                        const results: { id: string; url: string; timestamp: Date; qualityScore: number; flags: string[] }[] = new Array(files.length);
+                        let done = 0;
+                        files.forEach((file, i) => {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            results[i] = {
+                              id: `photo-${Date.now()}-${i}`,
+                              url: reader.result as string,
+                              timestamp: new Date(),
+                              qualityScore: 0,
+                              flags: [],
+                            };
+                            done++;
+                            if (done === files.length) {
+                              handleUpdateSubmission({ photos: [...selectedSubmission.photos, ...results] });
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                        e.target.value = "";
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => photoFileInputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload file(s)
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (!newPhotoUrl.trim()) return;
-                    const newPhoto = {
-                      id: `photo-${Date.now()}`,
-                      url: newPhotoUrl.trim(),
-                      timestamp: new Date(),
-                      qualityScore: 0,
-                      flags: [],
-                    };
-                    handleUpdateSubmission({ photos: [...selectedSubmission.photos, newPhoto] });
-                    setNewPhotoUrl("");
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add
-                </Button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 {selectedSubmission.photos.map((photo) => (
@@ -490,7 +539,7 @@ export function SellSubmissionDetailPage({ submissionId, onBack, onNavigateToAud
                 {selectedSubmission.photos.length === 0 && (
                   <div className="col-span-2 h-32 flex flex-col items-center justify-center text-muted-foreground bg-slate-50 dark:bg-slate-900 rounded-md border border-dashed">
                     <ImageIcon className="h-8 w-8 mb-2 opacity-50" />
-                    <span>No photos yet. Add an image URL above.</span>
+                    <span>No photos yet. Add an image URL or upload file(s) above.</span>
                   </div>
                 )}
               </div>
