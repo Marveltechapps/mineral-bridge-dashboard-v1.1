@@ -26,7 +26,8 @@ import {
   MapPin,
   Ban,
   RefreshCw,
-  FileText
+  FileText,
+  ShoppingCart
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -92,9 +93,11 @@ export interface MineralManagementProps {
   onOpenMineralForm?: (mineralId?: string) => void;
   /** Open Enquiry & Support (chat/support) for this user. */
   onNavigateToSupport?: (userId: string) => void;
+  /** Start the buy flow (place a buy order). Optionally pass mineralId to pre-select that mineral. */
+  onStartBuyFlow?: (mineralId?: string) => void;
 }
 
-export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOpenMineralForm, onNavigateToSupport }: MineralManagementProps) {
+export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOpenMineralForm, onNavigateToSupport, onStartBuyFlow }: MineralManagementProps) {
   const { state, dispatch } = useDashboardStore();
   const minerals = state.minerals;
   const buyOrders = state.buyOrders;
@@ -303,21 +306,38 @@ export function MineralManagement({ onOpenOrderDetail, onOpenMineralDetail, onOp
         
         <TabsContent value="catalog" className="mt-4 space-y-8">
           {/* Add New Mineral - at top */}
-          <div className="pb-6 border-b border-slate-200 dark:border-slate-700">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Add New Mineral</h3>
-            <p className="text-sm text-muted-foreground mb-4">Add a new mineral to the buy list from the app. It will appear under the appropriate category once saved.</p>
-            <Button
-              type="button"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onOpenMineralForm?.();
-              }}
-            >
-              <Plus className="w-4 h-4" />
-              Add New Mineral
-            </Button>
+          <div className="pb-6 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-end gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Add New Mineral</h3>
+              <p className="text-sm text-muted-foreground mb-4">Add a new mineral to the buy list from the app. It will appear under the appropriate category once saved.</p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onOpenMineralForm?.();
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add New Mineral
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onStartBuyFlow?.();
+                  }}
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  Buy mineral
+                </Button>
+              </div>
+            </div>
           </div>
 
           <div>

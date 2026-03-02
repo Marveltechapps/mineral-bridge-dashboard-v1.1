@@ -685,12 +685,15 @@ export function SellSubmissionDetailPage({ submissionId, onBack, onNavigateToAud
           </Card>
         </section>
 
-        {/* 4. Pricing & Offer Calculation – all editable */}
+        {/* 4. AI estimate & Offer – same as buy mineral: Subtotal, Fee %, Transport; reflects in app */}
         <section className="space-y-3">
           <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
             <Calculator className="h-5 w-5 text-indigo-500" />
-            <h3 className="font-semibold text-lg">Offer & Payout Engine</h3>
+            <h3 className="font-semibold text-lg">AI estimate (order summary)</h3>
           </div>
+          <p className="text-sm text-muted-foreground">
+            Used for AI-estimated Subtotal, Transport, Fee, and payout in the app. Same values reflect in the sell flow.
+          </p>
           <Card className="border-none shadow-sm">
             <CardContent className="p-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -709,7 +712,7 @@ export function SellSubmissionDetailPage({ submissionId, onBack, onNavigateToAud
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Gross Offer Value ({selectedSubmission.currency})</Label>
+                  <Label>Subtotal / Gross ({selectedSubmission.currency})</Label>
                   <Input
                     type="number"
                     min={0}
@@ -730,7 +733,7 @@ export function SellSubmissionDetailPage({ submissionId, onBack, onNavigateToAud
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Logistics & Insurance ({selectedSubmission.currency})</Label>
+                  <Label>Transport / Logistics ({selectedSubmission.currency})</Label>
                   <Input
                     type="number"
                     min={0}
@@ -738,6 +741,25 @@ export function SellSubmissionDetailPage({ submissionId, onBack, onNavigateToAud
                     onChange={(e) => handleUpdateSubmission({ logisticsCost: Number(e.target.value) || 0 })}
                     placeholder="0"
                   />
+                </div>
+                <div className="col-span-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 p-3 space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">AI estimated breakdown</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="font-medium">{selectedSubmission.currency} {selectedSubmission.grossOfferValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Fee ({selectedSubmission.platformFeePercent}%)</span>
+                    <span className="font-medium">{selectedSubmission.currency} {((selectedSubmission.grossOfferValue * selectedSubmission.platformFeePercent) / 100).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Transport</span>
+                    <span className="font-medium">{selectedSubmission.currency} {selectedSubmission.logisticsCost.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-emerald-600 dark:text-emerald-400 pt-1 border-t border-slate-200 dark:border-slate-700">
+                    <span>Net Payout</span>
+                    <span>{selectedSubmission.currency} {netPayout.toLocaleString()}</span>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Settlement type</Label>

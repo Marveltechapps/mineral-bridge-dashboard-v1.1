@@ -28,11 +28,18 @@ export function MineralFormPage({ mineralId, onBack, onSuccess }: MineralFormPag
   const categoryOptions = [...PRODUCT_CATEGORY_ORDER, ...(state.customCategories ?? [])];
 
   const handleSubmit = (data: Omit<Mineral, "id" | "createdAt">) => {
+    const sanitized = { ...data } as Omit<Mineral, "id" | "createdAt">;
+    if (typeof sanitized.platformFeePercent !== "number" || Number.isNaN(sanitized.platformFeePercent)) {
+      sanitized.platformFeePercent = 1;
+    }
+    if (typeof sanitized.defaultTransportAmount !== "number" || Number.isNaN(sanitized.defaultTransportAmount)) {
+      sanitized.defaultTransportAmount = 0;
+    }
     if (isEdit && mineral) {
-      dispatch({ type: "UPDATE_MINERAL", payload: { ...mineral, ...data } });
+      dispatch({ type: "UPDATE_MINERAL", payload: { ...mineral, ...sanitized } });
     } else {
       const newMineral: Mineral = {
-        ...data,
+        ...sanitized,
         id: `MIN-${String(state.minerals.length + 1).padStart(3, "0")}`,
         createdAt: new Date(),
       };

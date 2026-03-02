@@ -792,6 +792,23 @@ export function MineralForm({ initialData, onSubmit, onCancel, categoryOptions =
                   )}
                 />
               </div>
+              <Separator className="my-4" />
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">AI estimate (order summary)</h4>
+                <p className="text-xs text-muted-foreground mb-3">Used for AI-estimated Subtotal, Transport, Fee, and Total in the app buy flow.</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>Platform fee %</Label>
+                    <Input type="number" min={0} step={0.5} {...register("platformFeePercent", { valueAsNumber: true })} placeholder="1" />
+                    <p className="text-xs text-muted-foreground">e.g. 1 = 1%</p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Default transport (fixed amount)</Label>
+                    <Input type="number" min={0} {...register("defaultTransportAmount", { valueAsNumber: true })} placeholder="0" />
+                    <p className="text-xs text-muted-foreground">Same currency as above</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </Section>
 

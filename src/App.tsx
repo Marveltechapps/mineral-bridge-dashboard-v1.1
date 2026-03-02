@@ -39,6 +39,7 @@ import { ProfilePage } from "./components/admin/ProfilePage";
 import { HelpPage } from "./components/admin/HelpPage";
 import { Notifications } from "./components/dashboard/Notifications";
 import { GlobalSearchResults } from "./components/dashboard/GlobalSearchResults";
+import { BuyFlow } from "./components/buy/BuyFlow";
 import { Toaster } from "./components/ui/sonner";
 import {
   Breadcrumb,
@@ -66,6 +67,8 @@ type ViewParams = {
   selectedFinancialFlowStep?: "send-qr" | "call-buyer" | "reserve-escrow" | "testing" | "lc-issued" | "release";
   /** Orders & Settlements: open sheet with this tab (e.g. "testing"). */
   ordersSheetTab?: string;
+  /** Buy flow: pre-selected mineral id from catalog. */
+  buyFlowMineralId?: string;
 };
 
 function AppContent() {
@@ -225,6 +228,13 @@ function AppContent() {
     switch (currentView) {
       case "users":
         return <UserManagement initialSelectedUserId={viewParams.selectedUserId} />;
+      case "buy-flow":
+        return (
+          <BuyFlow
+            initialMineralId={viewParams.buyFlowMineralId}
+            onBack={() => navigateTo("minerals", {})}
+          />
+        );
       case "miner-dashboard":
         return <ArtisanalMinerDashboard />;
       case "mineral-form":
@@ -252,6 +262,7 @@ function AppContent() {
             onOpenMineralDetail={(mineralId) => navigateTo("mineral-detail", { selectedMineralId: mineralId })}
             onOpenMineralForm={openMineralFormPage}
             onNavigateToSupport={(userId) => navigateTo("enquiries", { selectedUserId: userId })}
+            onStartBuyFlow={(mineralId) => navigateTo("buy-flow", mineralId ? { buyFlowMineralId: mineralId } : {})}
           />
         );
       case "sell-minerals":

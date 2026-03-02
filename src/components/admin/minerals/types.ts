@@ -45,7 +45,11 @@ export interface Mineral {
   basePrice: number;
   currency: string;
   priceVisibility: boolean;
-  
+  /** AI estimate: platform fee % for order summary (e.g. 1 = 1%). Used in app buy flow. */
+  platformFeePercent?: number;
+  /** AI estimate: default transport amount (fixed, in same currency as basePrice). Used in app buy flow. */
+  defaultTransportAmount?: number;
+
   // 9. Compliance
   kycRequired: boolean;
   regionRestrictions: string[];
@@ -87,6 +91,8 @@ export const initialMineralState: Omit<Mineral, 'id' | 'createdAt'> = {
   basePrice: 0,
   currency: "USD",
   priceVisibility: true,
+  platformFeePercent: 1,
+  defaultTransportAmount: 0,
   kycRequired: true,
   regionRestrictions: [],
   visibleTo: ["Buyers", "Institutions"],

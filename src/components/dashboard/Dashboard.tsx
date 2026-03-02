@@ -184,6 +184,10 @@ export function Dashboard({ onViewChange, onOpenOrder, onOpenTransaction, onOpen
           <p className="text-muted-foreground">Welcome back, Admin. Here's what's happening today.</p>
         </div>
         <div className="flex gap-3">
+          <Button onClick={() => onViewChange?.('buy-flow')} variant="outline" className="gap-2">
+            <GemIcon className="w-4 h-4" />
+            Buy mineral
+          </Button>
           <Button onClick={() => onViewChange?.('minerals')} variant="outline" className="gap-2">
             <CheckCircle2 className="w-4 h-4" />
             Approve Minerals
